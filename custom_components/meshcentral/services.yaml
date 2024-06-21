@@ -1,0 +1,59 @@
+turn_on:
+  description: "Turn on the binary sensor"
+  fields:
+    entity_id:
+      description: "The entity ID of the binary sensor to turn on"
+      example: "binary_sensor.my_sensor"
+
+turn_off:
+  description: "Turn off the binary sensor"
+  fields:
+    entity_id:
+      description: "The entity ID of the binary sensor to turn off"
+      example: "binary_sensor.my_sensor"
+
+toast:
+  description: "Show a toast message"
+  fields:
+    entity_id:
+      required: true
+      description: "The entity ID of the binary sensor"
+      example: "binary_sensor.my_sensor"
+      selector:
+        entity:
+          domain: binary_sensor
+    message:
+      required: true
+      description: "The message to be shown in the toast"
+      example: "Hello, World!"
+      selector:
+        text:
+    title:
+      description: "The title of the toast message"
+      example: "HomeAssistant"
+      default: "HomeAssistant"
+      selector:
+        text:
+
+notify:
+  description: "Send a notification"
+  fields:
+    entity_id:
+      required: true
+      description: "The entity ID of the binary sensor"
+      example: "binary_sensor.my_sensor"
+      selector:
+        entity:
+          domain: binary_sensor
+    message:
+      required: true
+      description: "The message to be sent in the notification"
+      example: "Hello, World!"
+      selector:
+        text:
+    title:
+      description: "The title of the notification"
+      example: "HomeAssistant"
+      default: "HomeAssistant"
+      selector:
+        text:
