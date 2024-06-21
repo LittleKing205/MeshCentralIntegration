@@ -72,8 +72,12 @@ def generate_meshauth_login_token(username, password, token=None):
 ###########
 #  Send Command over websocket
 ###########
-async def send_command(websocket, action):
+async def send_command(websocket, action, extra_data=None):
     command_data = {'action': action, 'type': 'json'}
+
+    if extra_data:
+        command_data.update(extra_data)
+
     await websocket.send(json.dumps(command_data))
     _LOGGER.info(f"Sent command '{action}'")
 

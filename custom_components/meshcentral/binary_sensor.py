@@ -1,14 +1,15 @@
 import logging
 from homeassistant.components.binary_sensor import BinarySensorEntity, BinarySensorDeviceClass
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
-from homeassistant.helpers.typing import HomeAssistantType, ConfigType, DiscoveryInfoType
+from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
+from homeassistant.core import HomeAssistant
 
 _LOGGER = logging.getLogger(__name__)
 DOMAIN = "meshcentral"
 SIGNAL_CREATE_BINARY_SENSOR = "meshcentral_create_binary_sensor"
 SIGNAL_UPDATE_BINARY_SENSOR = "meshcentral_update_binary_sensor"
 
-async def async_setup_platform(hass: HomeAssistantType, config: ConfigType, async_add_entities, discovery_info: DiscoveryInfoType = None):
+async def async_setup_platform(hass: HomeAssistant, config: ConfigType, async_add_entities, discovery_info: DiscoveryInfoType = None):
     if discovery_info is None:
         return
 

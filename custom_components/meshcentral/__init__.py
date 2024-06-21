@@ -25,11 +25,12 @@ async def async_setup(hass: HomeAssistant, config: ConfigType):
     _LOGGER.info("Connecting to WebSocket")
     hass.loop.create_task(connect_websocket(hass, config[DOMAIN].get('url', 'localhost:5222'), config[DOMAIN].get('username', 'admin'), config[DOMAIN].get('password'), config[DOMAIN].get('ssl', True)))
 
-    await asyncio.sleep(5)
+    while hass.data.get(DOMAIN) is None:
+        await asyncio.sleep(1)
 
     _LOGGER.info("Setting up Platforms")
     for platform in PLATFORMS:
-        hass.helpers.discovery.load_platform(platform, DOMAIN, {}, config)
+        await hass.helpers.discovery.async_load_platform(platform, DOMAIN, {}, config)
 
     send_command = hass.data[DOMAIN]['websocket_send_command']
     await send_command(hass.data[DOMAIN]['websocket'], "nodes")
@@ -57,21 +58,21 @@ async def async_setup(hass: HomeAssistant, config: ConfigType):
 
     async def handle_notify(call: ServiceCall):
         entity_id = call.data.get("entity_id")
+        message = call.data.get("message")
+        title = call.data.get("title", "HomeAssistant")
+
         entity = hass.states.get(entity_id)
         if entity:
             node_id = entity.attributes.get("node_id")
             if node_id is not None:
                 name = entity.attributes.get("name")
                 _LOGGER.debug(f"Sending Notification to ({name}) with node_id: {node_id}")
-
-    async def handle_toast(call: ServiceCall):
-        entity_id = call.data.get("entity_id")
-        entity = hass.states.get(entity_id)
-        if entity:
-            node_id = entity.attributes.get("node_id")
-            if node_id is not None:
-                name = entity.attributes.get("name")
-                _LOGGER.debug(f"Sending Toast to ({name}) with node_id: {node_id}")
+                await send_command(hass.data[DOMAIN]['websocket'], "msg", {
+                    'msg': message,
+                    'title': title,
+                    'type': 'messagebox',
+                    'nodeid': node_id
+                })
 
     hass.services.async_register(DOMAIN, "turn_on", handle_turn_on, schema=vol.Schema({
         vol.Required("entity_id"): cv.entity_id
@@ -82,12 +83,6 @@ async def async_setup(hass: HomeAssistant, config: ConfigType):
     }))
 
     hass.services.async_register(DOMAIN, "notify", handle_notify, schema=vol.Schema({
-        vol.Required("entity_id"): cv.entity_id,
-        vol.Required("message"): cv.string,
-        vol.Required('title', default='HomeAssistant'): cv.string
-    }))
-
-    hass.services.async_register(DOMAIN, "toast", handle_toast, schema=vol.Schema({
         vol.Required("entity_id"): cv.entity_id,
         vol.Required("message"): cv.string,
         vol.Required('title', default='HomeAssistant'): cv.string
