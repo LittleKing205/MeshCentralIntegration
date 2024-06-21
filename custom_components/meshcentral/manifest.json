@@ -1,0 +1,10 @@
+{
+  "domain": "meshcentral",
+  "name": "MeshCentral Integration",
+  "version": "1.0",
+  "requirements": [
+    "websockets"
+  ],
+  "codeowners": [],
+  "dependencies": []
+}
