@@ -13,8 +13,6 @@ async def async_setup_platform(hass: HomeAssistantType, config: ConfigType, asyn
         return
 
     _LOGGER.info(f"Setting up MeshCentral binary sensor")
-    send_command = hass.data[DOMAIN]['websocket_send_command']
-    await send_command(hass.data[DOMAIN]['websocket'], "nodes")
 
     async def async_add_binary_sensor(devices):
         sensors = []

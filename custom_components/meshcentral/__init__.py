@@ -31,6 +31,9 @@ async def async_setup(hass: HomeAssistant, config: ConfigType):
     for platform in PLATFORMS:
         hass.helpers.discovery.load_platform(platform, DOMAIN, {}, config)
 
+    send_command = hass.data[DOMAIN]['websocket_send_command']
+    await send_command(hass.data[DOMAIN]['websocket'], "nodes")
+
     _LOGGER.info("Setting up Services")
     async def handle_turn_on(call: ServiceCall):
         entity_id = call.data.get("entity_id")

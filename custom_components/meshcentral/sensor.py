@@ -13,7 +13,6 @@ async def async_setup_platform(hass: HomeAssistantType, config: ConfigType, asyn
         return
 
     _LOGGER.info(f"Setting up MeshCentral battery sensor")
-    send_command = hass.data[DOMAIN]['websocket_send_command']
 
     async def async_add_battery_sensor(devices):
         sensors = []
