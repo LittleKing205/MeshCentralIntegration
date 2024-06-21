@@ -1,10 +1,16 @@
 {
   "domain": "meshcentral",
+  "documentation": "https://github.com/LittleKing205/MeshCentralIntegration",
+  "issue_tracker": "https://github.com/LittleKing205/MeshCentralIntegration/issues",
   "name": "MeshCentral Integration",
   "version": "1.0",
   "requirements": [
     "websockets"
   ],
-  "codeowners": [],
-  "dependencies": []
+  "codeowners": [
+    "@LittleKing205"
+  ],
+  "dependencies": [],
+  "single_config_entry": true,
+  "config_flow": false
 }
