@@ -13,7 +13,7 @@ SIGNAL_UPDATE_BINARY_SENSOR = "meshcentral_update_binary_sensor"
 SIGNAL_CREATE_BATTERY_SENSOR = "meshcentral_create_battery_sensor"
 SIGNAL_UPDATE_BATTERY_SENSOR = "meshcentral_update_battery_sensor"
 
-IGNORED_EVENTS  = ['changenode', 'wssessioncount', 'servertimelinestats', 'ifchange', 'sysinfohash', 'accountchange', 'loginTokenAdded', 'login', 'logout', 'agentlog', "recording", "relaylog"]
+IGNORED_EVENTS  = ['wakedevices', 'changenode', 'wssessioncount', 'servertimelinestats', 'ifchange', 'sysinfohash', 'accountchange', 'loginTokenAdded', 'login', 'logout', 'agentlog', "recording", "relaylog"]
 IGNORED_ACTIONS = ['serverinfo', 'userinfo', 'plugin']
 
 registered_battery_devices = set()
