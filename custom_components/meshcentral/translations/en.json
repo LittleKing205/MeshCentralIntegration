@@ -1,36 +1,35 @@
 {
+    "title": "MeshCentral Integration",
     "services": {
-      "meshcentral": {
-        "power": {
-          "name": "Power",
-          "description": "Control the power state",
-          "fields": {
-            "entity_id": {
-              "name": "Entity ID",
-              "description": "The entity to control"
-            },
-            "mode": {
-              "name": "Mode",
-              "description": "The power mode"
-            }
+      "power": {
+        "name": "Power",
+        "description": "Control the power state",
+        "fields": {
+          "entity_id": {
+            "name": "Entity ID",
+            "description": "The entity to control"
+          },
+          "mode": {
+            "name": "Mode",
+            "description": "The power mode"
           }
-        },
-        "notify": {
-          "name": "Notify",
-          "description": "Send a notification",
-          "fields": {
-            "entity_id": {
-              "name": "Entity ID",
-              "description": "The entity to notify"
-            },
-            "message": {
-              "name": "Message",
-              "description": "The message to send"
-            },
-            "title": {
-              "name": "Title",
-              "description": "The notification title"
-            }
+        }
+      },
+      "notify": {
+        "name": "Notify",
+        "description": "Send a notification",
+        "fields": {
+          "entity_id": {
+            "name": "Entity ID",
+            "description": "The entity to notify"
+          },
+          "message": {
+            "name": "Message",
+            "description": "The message to send"
+          },
+          "title": {
+            "name": "Title",
+            "description": "The notification title"
           }
         }
       }
