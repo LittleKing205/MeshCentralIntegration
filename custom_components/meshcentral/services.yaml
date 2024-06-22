@@ -1,13 +1,14 @@
 power:
   description: "Sends a new power state to device"
   fields:
-    entity_id:
+    device:
       required: true
       description: "The entity ID to switch"
       example: "binary_sensor.my_device_power"
       selector:
-        entity:
-          domain: binary_sensor
+        device:
+          filter:
+            integration: meshcentral
     mode:
       required: true
       description: "The selected mode"
@@ -24,13 +25,14 @@ power:
 notify:
   description: "Send a notification"
   fields:
-    entity_id:
+    device:
       required: true
       description: "The entity ID to send the notification"
       example: "binary_sensor.my_device_power"
       selector:
-        entity:
-          domain: binary_sensor
+        device:
+          filter:
+            integration: meshcentral
     message:
       required: true
       description: "The message to be sent in the notification"
