@@ -133,7 +133,7 @@ def handle_action_nodes(hass: HomeAssistant, groups):
             power = 'pwr' in node and node['pwr'] == 1
             name = node['name']
             devices.append({
-                "id": f"{deviceId}_power",
+                "id": deviceId,
                 "name": name,
                 "state": power,
                 "node_id": node['_id']
@@ -148,7 +148,7 @@ def handle_event_nodeconnect(hass: HomeAssistant, event_data):
     deviceId = parse_nodeid(event_data['nodeid'])
     power = 'pwr' in event_data and event_data['pwr'] == 1
     device = {
-        "id": f"{deviceId}_power",
+        "id": deviceId,
         "state": power,
         "node_id": event_data['nodeid']
     }
@@ -166,12 +166,12 @@ async def handle_event_devicesessions(hass: HomeAssistant, event_data):
 
     entity_registry = er.async_get(hass)
 
-    entity_id_power = entity_registry.async_get_entity_id("binary_sensor", DOMAIN, f"{deviceId}_power")
-    entity_id_battery = entity_registry.async_get_entity_id("sensor", DOMAIN, f"{deviceId}_battery")
+    entity_id_power = entity_registry.async_get_entity_id("binary_sensor", DOMAIN, deviceId)
+    entity_id_battery = entity_registry.async_get_entity_id("sensor", DOMAIN, deviceId)
     deviceName = hass.states.get(entity_id_power).attributes["name"]
     device = {
-        "id": f"{deviceId}_battery",
-        "name": f"{deviceName}",
+        "id": deviceId,
+        "name": deviceName,
         "state": battery,
         "node_id": event_data['nodeid']
     }

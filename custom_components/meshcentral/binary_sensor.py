@@ -3,6 +3,7 @@ from homeassistant.components.binary_sensor import BinarySensorEntity, BinarySen
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.device_registry import DeviceInfo
 
 _LOGGER = logging.getLogger(__name__)
 DOMAIN = "meshcentral"
@@ -53,6 +54,16 @@ class MeshCentralBinarySensor(BinarySensorEntity):
             "node_id": self._node_id,
             "name": self._name
         }
+
+    def device_info(self) -> DeviceInfo:
+        """Return the device info."""
+        return DeviceInfo(
+            identifiers={(DOMAIN, self._device_id)},
+            name=self._name,
+            manufacturer="MeshCentral",
+            model="MeshCentral",
+            sw_version="MeshCentral"
+        )
 
     def update_state(self, state):
         _LOGGER.info(f"Updating state for {self._device_id} to {state}")
