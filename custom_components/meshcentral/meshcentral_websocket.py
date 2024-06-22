@@ -5,9 +5,9 @@ import base64
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers import device_registry as dr, entity_registry as er
+from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
-DOMAIN = "meshcentral"
 SIGNAL_CREATE_BINARY_SENSOR = "meshcentral_create_binary_sensor"
 SIGNAL_UPDATE_BINARY_SENSOR = "meshcentral_update_binary_sensor"
 SIGNAL_CREATE_BATTERY_SENSOR = "meshcentral_create_battery_sensor"

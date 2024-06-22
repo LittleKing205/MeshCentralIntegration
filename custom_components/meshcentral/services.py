@@ -2,6 +2,7 @@ import logging
 from homeassistant.core import HomeAssistant, ServiceCall
 import voluptuous as vol
 import homeassistant.helpers.config_validation as cv
+from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
