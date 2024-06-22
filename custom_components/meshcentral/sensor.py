@@ -4,9 +4,9 @@ from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
+from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
-DOMAIN = "meshcentral"
 SIGNAL_CREATE_BATTERY_SENSOR = "meshcentral_create_battery_sensor"
 SIGNAL_UPDATE_BATTERY_SENSOR = "meshcentral_update_battery_sensor"
 
