@@ -1,0 +1,29 @@
+{
+    "config": {
+      "step": {
+        "user": {
+          "title": "Configure Example Integration",
+          "description": "Please enter the details to connect to the service.",
+          "data": {
+            "url": "Service URL",
+            "username": "Username",
+            "password": "Password"
+          }
+        }
+      }
+    },
+    "options": {
+      "step": {
+        "init": {
+          "title": "Modify Example Integration Options",
+          "description": "Update the connection details for the service.",
+          "data": {
+            "url": "Service URL",
+            "username": "Username",
+            "password": "Password"
+          }
+        }
+      }
+    }
+  }
+  
