@@ -21,26 +21,6 @@ CONFIG_SCHEMA = vol.Schema({
     })
 }, extra=vol.ALLOW_EXTRA)
 
-async def async_setup_OLD(hass: HomeAssistant, config: ConfigType):
-
-    _LOGGER.info("Connecting to WebSocket")
-    hass.loop.create_task(connect_websocket(hass, config[DOMAIN].get('url', 'localhost:5222'), config[DOMAIN].get('username', 'admin'), config[DOMAIN].get('password'), config[DOMAIN].get('ssl', True)))
-
-    _LOGGER.info("Setting up Platforms")
-    for platform in PLATFORMS:
-        await hass.helpers.discovery.async_load_platform(platform, DOMAIN, {}, config)
-        
-    while hass.data.get(DOMAIN) is None:
-        await asyncio.sleep(1)
-
-    websocket = hass.data[DOMAIN]['websocket']
-    send_command = hass.data[DOMAIN]['websocket_send_command']
-    await send_command(websocket, "nodes")
-
-
-
-    return True
-
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     _LOGGER.info("Connecting to WebSocket")
     hass.loop.create_task(connect_websocket(hass, entry.data.get('url', 'localhost:5222'), entry.data.get('username', 'admin'), entry.data.get('password'), entry.data.get('ssl', True)))

@@ -10,21 +10,6 @@ DOMAIN = "meshcentral"
 SIGNAL_CREATE_BATTERY_SENSOR = "meshcentral_create_battery_sensor"
 SIGNAL_UPDATE_BATTERY_SENSOR = "meshcentral_update_battery_sensor"
 
-async def async_setup_platform_OLD(hass: HomeAssistant, config: ConfigType, async_add_entities, discovery_info: DiscoveryInfoType = None):
-    if discovery_info is None:
-        return
-
-    _LOGGER.info(f"Setting up MeshCentral battery sensor")
-
-    async def async_add_battery_sensor(devices):
-        sensors = []
-        for device in devices:
-            _LOGGER.info(f"Adding sensor: {device['id']}")
-            sensors.append(MeshCentralBatterySensor(device))
-        async_add_entities(sensors, True)
-
-    async_dispatcher_connect(hass, SIGNAL_CREATE_BATTERY_SENSOR, async_add_battery_sensor)
-
 
 async def async_setup_entry(hass, config_entry, async_add_entities):
     _LOGGER.info(f"Setting up MeshCentral battery sensor")
