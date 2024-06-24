@@ -21,12 +21,8 @@ registered_battery_devices = set()
 ###########
 #  Connect to Websocket Funktions
 ###########
-async def connect_websocket(hass: HomeAssistant, url, username, password, ssl = True):
-    if ssl:
-        url = f"wss://{url}/control.ashx"
-    else:
-        url = f"ws://{url}/control.ashx"
-    headers = {'x-meshauth': generate_meshauth_login_token(username, password)}
+async def connect_websocket(hass: HomeAssistant, domain, username, password, ssl = True):
+    url, headers = generate_url_header(domain, ssl, username, password)
 
     async with websockets.connect(url, extra_headers=headers) as websocket:
         _LOGGER.info(f"Connected to {url}")
@@ -56,7 +52,11 @@ async def connect_websocket(hass: HomeAssistant, url, username, password, ssl = 
                 _LOGGER.error(f"Error processing message: {e} {message}")
                 continue
 
-def generate_meshauth_login_token(username, password, token=None):
+def generate_url_header(domain, ssl, username, password, token=None):
+    if ssl:
+        url = f"wss://{domain}/control.ashx"
+    else:
+        url = f"ws://{domain}/control.ashx"
     username_b64 = base64.b64encode(username.encode()).decode()
     password_b64 = base64.b64encode(password.encode()).decode()
 
@@ -66,7 +66,7 @@ def generate_meshauth_login_token(username, password, token=None):
     else:
         header_token = f"{username_b64},{password_b64}"
 
-    return header_token
+    return url, {'x-meshauth': header_token}
 
 
 ###########
