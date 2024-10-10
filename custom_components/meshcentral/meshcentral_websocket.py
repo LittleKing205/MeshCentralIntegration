@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import websockets
@@ -23,34 +24,44 @@ registered_battery_devices = set()
 ###########
 async def connect_websocket(hass: HomeAssistant, domain, username, password, ssl = True):
     url, headers = generate_url_header(domain, ssl, username, password)
+    while True:
+        try:
+            async with websockets.connect(url, extra_headers=headers) as websocket:
+                _LOGGER.info(f"Connected to {url}")
+                hass.data[DOMAIN] = {
+                    "websocket": websocket,
+                    "websocket_send_command": send_command
+                }
 
-    async with websockets.connect(url, extra_headers=headers) as websocket:
-        _LOGGER.info(f"Connected to {url}")
-        hass.data[DOMAIN] = {
-            "websocket": websocket,
-            "websocket_send_command": send_command
-        }
-
-        async for message in websocket:
-            try:
-                message_data = json.loads(message)
-                if 'action' in message_data and message_data['action'] in ['traceinfo', 'wakedevices', 'poweraction', 'msg']:
-                    continue
-                elif 'action' in message_data and message_data['action'] == 'event':
-                    event_data = message_data.get('event')
-                    if event_data:
-                        await process_event(hass, event_data)
-                elif 'action' in message_data and 'type' in message_data and message_data['type'] == 'json':
-                    action_data = json.loads(message_data['data'])
-                    await process_action(hass, message_data['action'], action_data)
-                elif 'action' in message_data:
-                    await process_action(hass, message_data['action'], message_data[message_data['action']])
-            except json.JSONDecodeError as e:
-                _LOGGER.error(f"Received invalid JSON: {message}")
-                continue
-            except Exception as e:
-                _LOGGER.error(f"Error processing message: {e} {message}")
-                continue
+                async for message in websocket:
+                    try:
+                        message_data = json.loads(message)
+                        if 'action' in message_data and message_data['action'] in ['traceinfo', 'wakedevices', 'poweraction', 'msg']:
+                            continue
+                        elif 'action' in message_data and message_data['action'] == 'event':
+                            event_data = message_data.get('event')
+                            if event_data:
+                                await process_event(hass, event_data)
+                        elif 'action' in message_data and 'type' in message_data and message_data['type'] == 'json':
+                            action_data = json.loads(message_data['data'])
+                            await process_action(hass, message_data['action'], action_data)
+                        elif 'action' in message_data:
+                            await process_action(hass, message_data['action'], message_data[message_data['action']])
+                    except json.JSONDecodeError as e:
+                        _LOGGER.error(f"Received invalid JSON: {message}")
+                        continue
+                    except Exception as e:
+                        _LOGGER.error(f"Error processing message: {e} {message}")
+                        continue
+        except websockets.ConnectionClosed as e:
+            _LOGGER.warning(f"WebSocket connection closed. Reconnecting in 5 seconds... Error: {e}")
+            await asyncio.sleep(5)
+        except websockets.exceptions.InvalidHandshake as e:
+            _LOGGER.error(f"Handshake failed. Check credentials and server status. Reconnecting in 5 seconds... Error: {e}")
+            await asyncio.sleep(5)
+        except Exception as e:
+            _LOGGER.error(f"Unexpected error: {e}")
+            break
 
 def generate_url_header(domain, ssl, username, password, token=None):
     if ssl:
