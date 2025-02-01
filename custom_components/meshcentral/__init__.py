@@ -9,6 +9,7 @@ import homeassistant.helpers.config_validation as cv
 from homeassistant.config_entries import ConfigEntry
 from .const import DOMAIN
 from .services import setup_services
+from .const import DOMAIN
 
 
 _LOGGER = logging.getLogger(__name__)
