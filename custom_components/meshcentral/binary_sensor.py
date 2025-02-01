@@ -4,16 +4,13 @@ from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
+from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
-DOMAIN = "meshcentral"
 SIGNAL_CREATE_BINARY_SENSOR = "meshcentral_create_binary_sensor"
 SIGNAL_UPDATE_BINARY_SENSOR = "meshcentral_update_binary_sensor"
 
-async def async_setup_platform(hass: HomeAssistant, config: ConfigType, async_add_entities, discovery_info: DiscoveryInfoType = None):
-    if discovery_info is None:
-        return
-
+async def async_setup_entry(hass, config_entry, async_add_entities):
     _LOGGER.info(f"Setting up MeshCentral binary sensor")
 
     async def async_add_binary_sensor(devices):
@@ -55,14 +52,12 @@ class MeshCentralBinarySensor(BinarySensorEntity):
             "name": self._name
         }
 
+    @property
     def device_info(self) -> DeviceInfo:
         """Return the device info."""
         return DeviceInfo(
             identifiers={(DOMAIN, self._device_id)},
-            name=self._name,
-            manufacturer="MeshCentral",
-            model="MeshCentral",
-            sw_version="MeshCentral"
+            name=self._name
         )
 
     def update_state(self, state):

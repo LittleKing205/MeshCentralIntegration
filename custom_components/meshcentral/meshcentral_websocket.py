@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import websockets
@@ -5,9 +6,9 @@ import base64
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers import device_registry as dr, entity_registry as er
+from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
-DOMAIN = "meshcentral"
 SIGNAL_CREATE_BINARY_SENSOR = "meshcentral_create_binary_sensor"
 SIGNAL_UPDATE_BINARY_SENSOR = "meshcentral_update_binary_sensor"
 SIGNAL_CREATE_BATTERY_SENSOR = "meshcentral_create_battery_sensor"
@@ -21,42 +22,52 @@ registered_battery_devices = set()
 ###########
 #  Connect to Websocket Funktions
 ###########
-async def connect_websocket(hass: HomeAssistant, url, username, password, ssl = True):
+async def connect_websocket(hass: HomeAssistant, domain, username, password, ssl = True):
+    url, headers = generate_url_header(domain, ssl, username, password)
+    while True:
+        try:
+            async with websockets.connect(url, extra_headers=headers) as websocket:
+                _LOGGER.info(f"Connected to {url}")
+                hass.data[DOMAIN] = {
+                    "websocket": websocket,
+                    "websocket_send_command": send_command
+                }
+
+                async for message in websocket:
+                    try:
+                        message_data = json.loads(message)
+                        if 'action' in message_data and message_data['action'] in ['traceinfo', 'wakedevices', 'poweraction', 'msg']:
+                            continue
+                        elif 'action' in message_data and message_data['action'] == 'event':
+                            event_data = message_data.get('event')
+                            if event_data:
+                                await process_event(hass, event_data)
+                        elif 'action' in message_data and 'type' in message_data and message_data['type'] == 'json':
+                            action_data = json.loads(message_data['data'])
+                            await process_action(hass, message_data['action'], action_data)
+                        elif 'action' in message_data:
+                            await process_action(hass, message_data['action'], message_data[message_data['action']])
+                    except json.JSONDecodeError as e:
+                        _LOGGER.error(f"Received invalid JSON: {message}")
+                        continue
+                    except Exception as e:
+                        _LOGGER.error(f"Error processing message: {e} {message}")
+                        continue
+        except websockets.ConnectionClosed as e:
+            _LOGGER.warning(f"WebSocket connection closed. Reconnecting in 5 seconds... Error: {e}")
+            await asyncio.sleep(5)
+        except websockets.exceptions.InvalidHandshake as e:
+            _LOGGER.error(f"Handshake failed. Check credentials and server status. Reconnecting in 5 seconds... Error: {e}")
+            await asyncio.sleep(5)
+        except Exception as e:
+            _LOGGER.error(f"Unexpected error: {e}")
+            break
+
+def generate_url_header(domain, ssl, username, password, token=None):
     if ssl:
-        url = f"wss://{url}/control.ashx"
+        url = f"wss://{domain}/control.ashx"
     else:
-        url = f"ws://{url}/control.ashx"
-    headers = {'x-meshauth': generate_meshauth_login_token(username, password)}
-
-    async with websockets.connect(url, extra_headers=headers) as websocket:
-        _LOGGER.info(f"Connected to {url}")
-        hass.data[DOMAIN] = {
-            "websocket": websocket,
-            "websocket_send_command": send_command
-        }
-
-        async for message in websocket:
-            try:
-                message_data = json.loads(message)
-                if 'action' in message_data and message_data['action'] in ['traceinfo', 'wakedevices', 'poweraction', 'msg']:
-                    continue
-                elif 'action' in message_data and message_data['action'] == 'event':
-                    event_data = message_data.get('event')
-                    if event_data:
-                        await process_event(hass, event_data)
-                elif 'action' in message_data and 'type' in message_data and message_data['type'] == 'json':
-                    action_data = json.loads(message_data['data'])
-                    await process_action(hass, message_data['action'], action_data)
-                elif 'action' in message_data:
-                    await process_action(hass, message_data['action'], message_data[message_data['action']])
-            except json.JSONDecodeError as e:
-                _LOGGER.error(f"Received invalid JSON: {message}")
-                continue
-            except Exception as e:
-                _LOGGER.error(f"Error processing message: {e} {message}")
-                continue
-
-def generate_meshauth_login_token(username, password, token=None):
+        url = f"ws://{domain}/control.ashx"
     username_b64 = base64.b64encode(username.encode()).decode()
     password_b64 = base64.b64encode(password.encode()).decode()
 
@@ -66,7 +77,7 @@ def generate_meshauth_login_token(username, password, token=None):
     else:
         header_token = f"{username_b64},{password_b64}"
 
-    return header_token
+    return url, {'x-meshauth': header_token}
 
 
 ###########
