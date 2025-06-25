@@ -25,7 +25,17 @@ CONFIG_SCHEMA = vol.Schema({
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     _LOGGER.info("Connecting to WebSocket")
-    hass.loop.create_task(connect_websocket(hass, entry.data.get('url', 'localhost:5222'), entry.data.get('username', 'admin'), entry.data.get('password'), entry.data.get('ssl', True)))
+    ssl = entry.data.get('ssl', True)
+    
+    hass.loop.create_task(
+        connect_websocket(
+            hass,
+            entry.data.get('url', 'localhost:5222'),
+            entry.data.get('username', 'admin'),
+            entry.data.get('password'),
+            ssl
+        )
+    )
 
     _LOGGER.info("Setting up Platforms")
     await hass.config_entries.async_forward_entry_setups(entry, ["binary_sensor", "sensor"])

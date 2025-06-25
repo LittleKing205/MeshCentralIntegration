@@ -17,12 +17,13 @@ class MeshCentralConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         errors = {}
         if user_input is not None:
             # Validate and create the config entry
-            return self.async_create_entry(title="Example Integration", data=user_input)
+            return self.async_create_entry(title=user_input['url'], data=user_input)
 
         schema = vol.Schema({
             vol.Required('url', default='localhost:5222'): cv.string,
             vol.Required('username', default='admin'): cv.string,
             vol.Required('password'): cv.string,
+            #vol.Optional('ssl', default=True): cv.boolean
         })
 
         return self.async_show_form(

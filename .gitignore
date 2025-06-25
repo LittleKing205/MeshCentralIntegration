@@ -1,0 +1,11 @@
+.cloud
+.storage
+blueprints/
+.HA_VERSION
+*.yaml
+
+home-assistant*
+
+custom_components/meshcentral/__pycache__
+custom_components/meshcentral/merge_files.sh
+custom_components/meshcentral/merged.txt

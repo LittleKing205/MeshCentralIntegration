@@ -1,17 +1,13 @@
 {
   "domain": "meshcentral",
   "name": "MeshCentral",
-  "codeowners": [
-    "@LittleKing205"
-  ],
+  "codeowners": ["@LittleKing205"],
   "config_flow": true,
   "dependencies": [],
   "documentation": "https://github.com/LittleKing205/MeshCentralIntegration",
   "iot_class": "local_push",
   "issue_tracker": "https://github.com/LittleKing205/MeshCentralIntegration/issues",
-  "requirements": [
-    "websockets"
-  ],
+  "requirements": ["aiohttp"],
   "single_config_entry": true,
   "version": "0.0.3"
 }
