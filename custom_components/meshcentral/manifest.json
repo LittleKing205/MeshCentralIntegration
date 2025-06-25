@@ -9,5 +9,5 @@
   "issue_tracker": "https://github.com/LittleKing205/MeshCentralIntegration/issues",
   "requirements": ["aiohttp"],
   "single_config_entry": true,
-  "version": "0.0.3"
+  "version": "0.0.4"
 }
