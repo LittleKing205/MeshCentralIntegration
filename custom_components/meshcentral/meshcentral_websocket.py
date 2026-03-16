@@ -49,6 +49,7 @@ class MeshCentralWebSocketClient:
         password: str,
         ssl_enabled: bool,
         registered_battery_devices: set[str],
+        entry_id: str | None = None,
     ) -> None:
         self.hass = hass
         self._domain = domain
@@ -56,6 +57,7 @@ class MeshCentralWebSocketClient:
         self._password = password
         self._ssl_enabled = ssl_enabled
         self._registered_battery_devices = registered_battery_devices
+        self._entry_id = entry_id
 
         self._session: aiohttp.ClientSession | None = None
         self._websocket: aiohttp.ClientWebSocketResponse | None = None
@@ -63,6 +65,7 @@ class MeshCentralWebSocketClient:
         self._stop_event = asyncio.Event()
         self._connected_event = asyncio.Event()
         self._connect_lock = asyncio.Lock()
+        self._cached_devices: dict[str, dict[str, Any]] = {}
 
     async def async_start(self) -> None:
         """Start websocket background worker."""
@@ -113,6 +116,10 @@ class MeshCentralWebSocketClient:
 
         await self._websocket.send_str(json.dumps(command_data))
         _LOGGER.debug("Sent command '%s'", action)
+
+    def get_cached_devices(self) -> list[dict[str, Any]]:
+        """Return list of cached devices."""
+        return list(self._cached_devices.values())
 
     async def _run(self) -> None:
         """Keep websocket connected until stopped."""
@@ -186,16 +193,16 @@ class MeshCentralWebSocketClient:
         if action == "event":
             event_data = message_data.get("event")
             if event_data:
-                await process_event(self.hass, event_data, self._registered_battery_devices)
+                await process_event(self.hass, event_data, self._registered_battery_devices, self._entry_id)
             return
 
         if action and message_data.get("type") == "json":
             action_data = json.loads(message_data.get("data", "{}"))
-            await process_action(self.hass, action, action_data)
+            await process_action(self.hass, action, action_data, self._entry_id)
             return
 
         if action and action in message_data:
-            await process_action(self.hass, action, message_data[action])
+            await process_action(self.hass, action, message_data[action], self._entry_id)
 
 
 def generate_url_header(
@@ -228,34 +235,34 @@ def parse_nodeid(nodeid: str) -> str:
     return nodeid
 
 
-async def process_event(hass: HomeAssistant, event_data: dict[str, Any], registered_battery_devices: set[str]) -> None:
+async def process_event(hass: HomeAssistant, event_data: dict[str, Any], registered_battery_devices: set[str], entry_id: str | None = None) -> None:
     action = event_data.get("action")
     if not action or action in IGNORED_EVENTS:
         return
 
     if action == "nodeconnect":
-        handle_event_nodeconnect(hass, event_data)
+        handle_event_nodeconnect(hass, event_data, entry_id)
         return
 
     if action == "devicesessions":
-        await handle_event_devicesessions(hass, event_data, registered_battery_devices)
+        await handle_event_devicesessions(hass, event_data, registered_battery_devices, entry_id)
         return
 
     _LOGGER.debug("Unknown event type: %s", action)
 
 
-async def process_action(hass: HomeAssistant, action: str, action_data: Any) -> None:
+async def process_action(hass: HomeAssistant, action: str, action_data: Any, entry_id: str | None = None) -> None:
     if action in IGNORED_ACTIONS:
         return
 
     if action == "nodes":
-        handle_action_nodes(hass, action_data)
+        handle_action_nodes(hass, action_data, entry_id)
         return
 
     _LOGGER.debug("Unknown action type: %s", action)
 
 
-def handle_action_nodes(hass: HomeAssistant, groups: dict[str, list[dict[str, Any]]]) -> None:
+def handle_action_nodes(hass: HomeAssistant, groups: dict[str, list[dict[str, Any]]], entry_id: str | None = None) -> None:
     devices: list[dict[str, Any]] = []
 
     for group in groups.values():
@@ -269,19 +276,25 @@ def handle_action_nodes(hass: HomeAssistant, groups: dict[str, list[dict[str, An
                     "name": name,
                     "state": power,
                     "node_id": node["_id"],
+                    "entry_id": entry_id,
                 }
             )
 
     async_dispatcher_send(hass, SIGNAL_CREATE_BINARY_SENSOR, devices)
 
 
-def handle_event_nodeconnect(hass: HomeAssistant, event_data: dict[str, Any]) -> None:
+def handle_event_nodeconnect(
+    hass: HomeAssistant,
+    event_data: dict[str, Any],
+    entry_id: str | None = None,
+) -> None:
     device_id = parse_nodeid(event_data["nodeid"])
     power = bool(event_data.get("pwr") == 1)
     device = {
         "id": device_id,
         "state": power,
         "node_id": event_data["nodeid"],
+        "entry_id": entry_id,
     }
     async_dispatcher_send(hass, SIGNAL_UPDATE_BINARY_SENSOR, [device])
 
@@ -290,6 +303,7 @@ async def handle_event_devicesessions(
     hass: HomeAssistant,
     event_data: dict[str, Any],
     registered_battery_devices: set[str],
+    entry_id: str | None = None,
 ) -> None:
     device_id = parse_nodeid(event_data["nodeid"])
 
@@ -314,6 +328,7 @@ async def handle_event_devicesessions(
         "name": device_name,
         "state": battery,
         "node_id": event_data["nodeid"],
+        "entry_id": entry_id,
     }
 
     if device_id in registered_battery_devices:

@@ -45,6 +45,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         password=entry_config[CONF_PASSWORD],
         ssl_enabled=entry_config.get(CONF_SSL, DEFAULT_SSL),
         registered_battery_devices=entry_runtime[DATA_REGISTERED_BATTERY_DEVICES],
+        entry_id=entry.entry_id,
     )
     await client.async_start()
 

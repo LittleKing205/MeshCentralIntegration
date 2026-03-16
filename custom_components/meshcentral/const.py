@@ -15,6 +15,8 @@ PLATFORMS = ["binary_sensor", "sensor"]
 DATA_CLIENT = "client"
 DATA_REGISTERED_BATTERY_DEVICES = "registered_battery_devices"
 
+NODE_ID_IDENTIFIER_PREFIX = "node_id:"
+
 SIGNAL_CREATE_BINARY_SENSOR = "meshcentral_create_binary_sensor"
 SIGNAL_UPDATE_BINARY_SENSOR = "meshcentral_update_binary_sensor"
 SIGNAL_CREATE_BATTERY_SENSOR = "meshcentral_create_battery_sensor"

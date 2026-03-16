@@ -6,10 +6,8 @@ import voluptuous as vol
 from homeassistant.core import HomeAssistant, ServiceCall
 import homeassistant.helpers.config_validation as cv
 from homeassistant.helpers.device_registry import async_get as async_get_device_registry
-from homeassistant.helpers.entity_registry import async_entries_for_device
-from homeassistant.helpers.entity_registry import async_get as async_get_entity_registry
 
-from .const import DATA_CLIENT, DOMAIN
+from .const import DATA_CLIENT, DOMAIN, NODE_ID_IDENTIFIER_PREFIX
 from .meshcentral_websocket import MeshCentralWebSocketClient
 
 _LOGGER = logging.getLogger(__name__)
@@ -33,24 +31,19 @@ def _get_client(hass: HomeAssistant, entry_id: str | None) -> MeshCentralWebSock
 
 def _resolve_node_id(hass: HomeAssistant, device_id: str) -> str | None:
     device_registry = async_get_device_registry(hass)
-    entity_registry = async_get_entity_registry(hass)
 
     device_entry = device_registry.async_get(device_id)
     if not device_entry:
         _LOGGER.error("Device with ID %s not found", device_id)
         return None
 
-    entities = async_entries_for_device(entity_registry, device_entry.id)
-    if not entities:
-        _LOGGER.error("No entities found for device %s", device_id)
-        return None
+    for identifier_domain, identifier_value in device_entry.identifiers:
+        if identifier_domain != DOMAIN:
+            continue
+        if identifier_value.startswith(NODE_ID_IDENTIFIER_PREFIX):
+            return identifier_value.removeprefix(NODE_ID_IDENTIFIER_PREFIX)
 
-    for entity in entities:
-        state = hass.states.get(entity.entity_id)
-        if state and state.attributes.get("node_id"):
-            return state.attributes["node_id"]
-
-    _LOGGER.error("No node_id attribute found for device %s", device_id)
+    _LOGGER.error("No node_id identifier found for device %s", device_id)
     return None
 
 
