@@ -1,57 +1,74 @@
-import logging
-import asyncio
-from homeassistant.core import HomeAssistant, ServiceCall
-from homeassistant.helpers.typing import ConfigType
-from .meshcentral_websocket import connect_websocket
-from homeassistant.const import CONF_URL
-import voluptuous as vol
-import homeassistant.helpers.config_validation as cv
-from homeassistant.config_entries import ConfigEntry
-from .const import DOMAIN
-from .services import setup_services
-from .const import DOMAIN
+from __future__ import annotations
 
+import logging
+
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.core import HomeAssistant
+
+from .const import (
+    CONF_PASSWORD,
+    CONF_SSL,
+    CONF_URL,
+    CONF_USERNAME,
+    DATA_CLIENT,
+    DATA_REGISTERED_BATTERY_DEVICES,
+    DEFAULT_SSL,
+    DOMAIN,
+    PLATFORMS,
+)
+from .meshcentral_websocket import MeshCentralWebSocketClient
+from .services import setup_services, unload_services
 
 _LOGGER = logging.getLogger(__name__)
-PLATFORMS = ["binary_sensor", "sensor"]
 
-CONFIG_SCHEMA = vol.Schema({
-    DOMAIN: vol.Schema({
-        vol.Required('url', default='localhost:5222'): cv.string,
-        vol.Required('username', default='admin'): cv.string,
-        vol.Required('password'): cv.string,
-    })
-}, extra=vol.ALLOW_EXTRA)
 
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    _LOGGER.info("Connecting to WebSocket")
-    ssl = entry.data.get('ssl', True)
-    
-    hass.loop.create_task(
-        connect_websocket(
-            hass,
-            entry.data.get('url', 'localhost:5222'),
-            entry.data.get('username', 'admin'),
-            entry.data.get('password'),
-            ssl
-        )
-    )
-
-    _LOGGER.info("Setting up Platforms")
-    await hass.config_entries.async_forward_entry_setups(entry, ["binary_sensor", "sensor"])
-    
-    while hass.data.get(DOMAIN) is None:
-        await asyncio.sleep(1)
-
-    websocket = hass.data[DOMAIN]['websocket']
-    send_command = hass.data[DOMAIN]['websocket_send_command']
-    await send_command(websocket, "nodes")
-
-    await setup_services(hass, websocket, send_command)
-
+async def async_setup(hass: HomeAssistant, config: dict) -> bool:
+    """Set up the MeshCentral integration from yaml (not used)."""
+    hass.data.setdefault(DOMAIN, {})
     return True
 
+
+async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Set up MeshCentral from a config entry."""
+    hass.data.setdefault(DOMAIN, {})
+
+    entry_runtime: dict = {
+        DATA_REGISTERED_BATTERY_DEVICES: set(),
+    }
+
+    entry_config = {**entry.data, **entry.options}
+
+    client = MeshCentralWebSocketClient(
+        hass=hass,
+        domain=entry_config[CONF_URL],
+        username=entry_config[CONF_USERNAME],
+        password=entry_config[CONF_PASSWORD],
+        ssl_enabled=entry_config.get(CONF_SSL, DEFAULT_SSL),
+        registered_battery_devices=entry_runtime[DATA_REGISTERED_BATTERY_DEVICES],
+    )
+    await client.async_start()
+
+    entry_runtime[DATA_CLIENT] = client
+    hass.data[DOMAIN][entry.entry_id] = entry_runtime
+
+    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    await setup_services(hass, entry.entry_id)
+
+    _LOGGER.info("MeshCentral entry set up: %s", entry.entry_id)
+    return True
+
+
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    # Unload the integration
-    hass.data.pop(DOMAIN, None)
+    """Unload a config entry."""
+    unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    if not unload_ok:
+        return False
+
+    entry_runtime = hass.data.get(DOMAIN, {}).pop(entry.entry_id, None)
+    if entry_runtime and DATA_CLIENT in entry_runtime:
+        await entry_runtime[DATA_CLIENT].async_stop()
+
+    await unload_services(hass)
+
+    _LOGGER.info("MeshCentral entry unloaded: %s", entry.entry_id)
     return True

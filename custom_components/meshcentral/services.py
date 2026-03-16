@@ -1,91 +1,156 @@
+from __future__ import annotations
+
 import logging
-from homeassistant.core import HomeAssistant, ServiceCall
+
 import voluptuous as vol
+from homeassistant.core import HomeAssistant, ServiceCall
 import homeassistant.helpers.config_validation as cv
-from .const import DOMAIN
-from homeassistant.helpers.device_registry import async_get as async_get_device
-from homeassistant.helpers.entity_registry import async_get as async_get_entity
+from homeassistant.helpers.device_registry import async_get as async_get_device_registry
 from homeassistant.helpers.entity_registry import async_entries_for_device
+from homeassistant.helpers.entity_registry import async_get as async_get_entity_registry
+
+from .const import DATA_CLIENT, DOMAIN
+from .meshcentral_websocket import MeshCentralWebSocketClient
 
 _LOGGER = logging.getLogger(__name__)
 
-async def setup_services(hass: HomeAssistant, websocket, send_command):
-    _LOGGER.info("Setting up Services")
+SERVICE_POWER = "power"
+SERVICE_NOTIFY = "notify"
 
-    async def handle_power(call: ServiceCall):
-        device = call.data.get("device")
-        mode = call.data.get("mode")
-
-        device_registry = async_get_device(hass)
-        entity_registry = async_get_entity(hass)
-
-        # Lade Device
-        device_entry = device_registry.async_get(device)
-
-        if device_entry:
-            entities = async_entries_for_device(entity_registry, device_entry.id)
-            
-            if entities:
-                entity = hass.states.get(entities[0].entity_id)
-            else:
-                _LOGGER.error(f"No entities found for device {device}")
-        else:
-            _LOGGER.error(f"Device with ID {device} not found")
-
-        if entity:
-            node_id = entity.attributes.get("node_id")
-            if node_id is not None:
-                name = entity.attributes.get("name")
-                match mode:
-                    case "wake":
-                        await send_command(websocket, 'wakedevices', {'nodeids': [node_id]})
-                    case "off":
-                        await send_command(websocket, 'poweraction', {'nodeids': [node_id], 'actiontype': 2})
-                    case "reset":
-                        await send_command(websocket, 'poweraction', {'nodeids': [node_id], 'actiontype': 3})
-                    case "sleep":
-                        await send_command(websocket, 'poweraction', {'nodeids': [node_id], 'actiontype': 4})
-
-    async def handle_notify(call: ServiceCall):
-        device = call.data.get("device")
-        message = call.data.get("message")
-        title = call.data.get("title", "HomeAssistant")
-
-        device_registry = async_get_device(hass)
-        entity_registry = async_get_entity(hass)
-
-        # Lade Device
-        device_entry = device_registry.async_get(device)
-
-        if device_entry:
-            entities = async_entries_for_device(entity_registry, device_entry.id)
-            
-            if entities:
-                entity = hass.states.get(entities[0].entity_id)
-            else:
-                _LOGGER.error(f"No entities found for device {device}")
-        else:
-            _LOGGER.error(f"Device with ID {device} not found")
+_SERVICE_OWNER_ENTRY_ID: str | None = None
 
 
-        if entity:
-            node_id = entity.attributes.get("node_id")
-            if node_id is not None:
-                name = entity.attributes.get("name")
-                await send_command(websocket, "msg", {
-                    'msg': message,
-                    'title': title,
-                    'type': 'messagebox',
-                    'nodeid': node_id
-                })
+def _get_client(hass: HomeAssistant, entry_id: str | None) -> MeshCentralWebSocketClient | None:
+    if entry_id is None:
+        return None
 
-    hass.services.async_register(DOMAIN, "power", handle_power, schema=vol.Schema({
-        vol.Required("device"): cv.string,
-        vol.Required("mode"): cv.string
-    }))
+    entry_runtime = hass.data.get(DOMAIN, {}).get(entry_id)
+    if not entry_runtime:
+        return None
 
-    hass.services.async_register(DOMAIN, "notify", handle_notify, schema=vol.Schema({
-        vol.Required("device"): cv.string,
-        vol.Required("message"): cv.string,
-        vol.Required('title', default='HomeAssistant'): cv.string
-    }))
+    return entry_runtime.get(DATA_CLIENT)
+
+
+def _resolve_node_id(hass: HomeAssistant, device_id: str) -> str | None:
+    device_registry = async_get_device_registry(hass)
+    entity_registry = async_get_entity_registry(hass)
+
+    device_entry = device_registry.async_get(device_id)
+    if not device_entry:
+        _LOGGER.error("Device with ID %s not found", device_id)
+        return None
+
+    entities = async_entries_for_device(entity_registry, device_entry.id)
+    if not entities:
+        _LOGGER.error("No entities found for device %s", device_id)
+        return None
+
+    for entity in entities:
+        state = hass.states.get(entity.entity_id)
+        if state and state.attributes.get("node_id"):
+            return state.attributes["node_id"]
+
+    _LOGGER.error("No node_id attribute found for device %s", device_id)
+    return None
+
+
+async def setup_services(hass: HomeAssistant, entry_id: str) -> None:
+    """Register MeshCentral services."""
+    global _SERVICE_OWNER_ENTRY_ID
+
+    if _SERVICE_OWNER_ENTRY_ID is not None:
+        return
+
+    async def handle_power(call: ServiceCall) -> None:
+        client = _get_client(hass, _SERVICE_OWNER_ENTRY_ID)
+        if not client:
+            _LOGGER.error("MeshCentral client is unavailable")
+            return
+
+        node_id = _resolve_node_id(hass, call.data["device"])
+        if not node_id:
+            return
+
+        mode = call.data["mode"]
+        if mode == "wake":
+            await client.async_send_command("wakedevices", {"nodeids": [node_id]})
+            return
+
+        action_map = {
+            "off": 2,
+            "reset": 3,
+            "sleep": 4,
+        }
+        action_type = action_map.get(mode)
+        if action_type is None:
+            _LOGGER.error("Unsupported power mode: %s", mode)
+            return
+
+        await client.async_send_command(
+            "poweraction",
+            {
+                "nodeids": [node_id],
+                "actiontype": action_type,
+            },
+        )
+
+    async def handle_notify(call: ServiceCall) -> None:
+        client = _get_client(hass, _SERVICE_OWNER_ENTRY_ID)
+        if not client:
+            _LOGGER.error("MeshCentral client is unavailable")
+            return
+
+        node_id = _resolve_node_id(hass, call.data["device"])
+        if not node_id:
+            return
+
+        await client.async_send_command(
+            "msg",
+            {
+                "msg": call.data["message"],
+                "title": call.data.get("title", "HomeAssistant"),
+                "type": "messagebox",
+                "nodeid": node_id,
+            },
+        )
+
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_POWER,
+        handle_power,
+        schema=vol.Schema(
+            {
+                vol.Required("device"): cv.string,
+                vol.Required("mode"): vol.In(["wake", "off", "sleep", "reset"]),
+            }
+        ),
+    )
+
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_NOTIFY,
+        handle_notify,
+        schema=vol.Schema(
+            {
+                vol.Required("device"): cv.string,
+                vol.Required("message"): cv.string,
+                vol.Optional("title", default="HomeAssistant"): cv.string,
+            }
+        ),
+    )
+
+    _SERVICE_OWNER_ENTRY_ID = entry_id
+    _LOGGER.debug("MeshCentral services registered")
+
+
+async def unload_services(hass: HomeAssistant) -> None:
+    """Unregister MeshCentral services."""
+    global _SERVICE_OWNER_ENTRY_ID
+
+    if _SERVICE_OWNER_ENTRY_ID is None:
+        return
+
+    hass.services.async_remove(DOMAIN, SERVICE_POWER)
+    hass.services.async_remove(DOMAIN, SERVICE_NOTIFY)
+    _SERVICE_OWNER_ENTRY_ID = None
+    _LOGGER.debug("MeshCentral services unregistered")

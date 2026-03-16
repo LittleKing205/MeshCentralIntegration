@@ -2,12 +2,13 @@
     "config": {
       "step": {
         "user": {
-          "title": "Configure Example Integration",
-          "description": "Please enter the details to connect to the service.",
+          "title": "Configure MeshCentral",
+          "description": "Enter your MeshCentral connection details.",
           "data": {
-            "url": "Service URL",
+            "url": "MeshCentral URL",
             "username": "Username",
-            "password": "Password"
+            "password": "Password",
+            "ssl": "Use SSL"
           }
         }
       }
@@ -15,12 +16,13 @@
     "options": {
       "step": {
         "init": {
-          "title": "Modify Example Integration Options",
-          "description": "Update the connection details for the service.",
+          "title": "MeshCentral Options",
+          "description": "Update connection details.",
           "data": {
-            "url": "Service URL",
+            "url": "MeshCentral URL",
             "username": "Username",
-            "password": "Password"
+            "password": "Password",
+            "ssl": "Use SSL"
           }
         }
       }

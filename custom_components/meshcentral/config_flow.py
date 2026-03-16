@@ -1,54 +1,78 @@
+from __future__ import annotations
+
+from typing import Any
+
 import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.core import callback
-from homeassistant.helpers import config_validation as cv
-from homeassistant.exceptions import HomeAssistantError
+from homeassistant.data_entry_flow import FlowResult
 
-from .const import DOMAIN
+from .const import (
+    CONF_PASSWORD,
+    CONF_SSL,
+    CONF_URL,
+    CONF_USERNAME,
+    DEFAULT_SSL,
+    DEFAULT_URL,
+    DEFAULT_USERNAME,
+    DOMAIN,
+)
+
 
 class MeshCentralConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
-    """Handle a config flow for Example integration."""
+    """Handle a config flow for MeshCentral."""
 
     VERSION = 1
-    CONNECTION_CLASS = config_entries.CONN_CLASS_CLOUD_POLL
 
-    async def async_step_user(self, user_input=None):
+    async def async_step_user(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         """Handle the initial step."""
-        errors = {}
-        if user_input is not None:
-            # Validate and create the config entry
-            return self.async_create_entry(title=user_input['url'], data=user_input)
+        errors: dict[str, str] = {}
 
-        schema = vol.Schema({
-            vol.Required('url', default='localhost:5222'): cv.string,
-            vol.Required('username', default='admin'): cv.string,
-            vol.Required('password'): cv.string,
-            #vol.Optional('ssl', default=True): cv.boolean
-        })
+        if user_input is not None:
+            await self.async_set_unique_id(user_input[CONF_URL])
+            self._abort_if_unique_id_configured()
+            return self.async_create_entry(title=user_input[CONF_URL], data=user_input)
 
         return self.async_show_form(
-            step_id="user", data_schema=schema, errors=errors
+            step_id="user",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_URL, default=DEFAULT_URL): str,
+                    vol.Required(CONF_USERNAME, default=DEFAULT_USERNAME): str,
+                    vol.Required(CONF_PASSWORD): str,
+                    vol.Optional(CONF_SSL, default=DEFAULT_SSL): bool,
+                }
+            ),
+            errors=errors,
         )
 
+    @staticmethod
+    @callback
+    def async_get_options_flow(config_entry: config_entries.ConfigEntry):
+        """Return options flow handler."""
+        return MeshCentralOptionsFlow(config_entry)
 
-async def validate_input(data):
-    """Validate the user input allows us to connect."""
-    url = data['url']
-    username = data['username']
-    password = data['password']
-    _LOGGER.debug(f"Validate User Input")
 
-    # Beispielcode: Versuche, eine Verbindung herzustellen
-    try:
-        # Hier implementierst du den Verbindungscheck
-        # Zum Beispiel könnte es ein HTTP-Request oder eine andere API-Anfrage sein
-        raise CannotConnect
-        if not response.success:
-            raise ValueError("Invalid credentials")
-    except Exception as e:
-        raise CannotConnect
+class MeshCentralOptionsFlow(config_entries.OptionsFlow):
+    """Handle options for MeshCentral."""
 
-    return {"title": "Example Integration"}
+    def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
+        self.config_entry = config_entry
 
-class CannotConnect(HomeAssistantError):
-    """Error to indicate we cannot connect."""
+    async def async_step_init(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+        """Manage options."""
+        if user_input is not None:
+            return self.async_create_entry(title="", data=user_input)
+
+        current = {**self.config_entry.data, **self.config_entry.options}
+        return self.async_show_form(
+            step_id="init",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_URL, default=current.get(CONF_URL, DEFAULT_URL)): str,
+                    vol.Required(CONF_USERNAME, default=current.get(CONF_USERNAME, DEFAULT_USERNAME)): str,
+                    vol.Required(CONF_PASSWORD, default=current.get(CONF_PASSWORD, "")): str,
+                    vol.Optional(CONF_SSL, default=current.get(CONF_SSL, DEFAULT_SSL)): bool,
+                }
+            ),
+        )

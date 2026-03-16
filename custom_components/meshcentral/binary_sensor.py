@@ -1,73 +1,75 @@
+from __future__ import annotations
+
 import logging
-from homeassistant.components.binary_sensor import BinarySensorEntity, BinarySensorDeviceClass
-from homeassistant.helpers.dispatcher import async_dispatcher_connect
-from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
-from homeassistant.core import HomeAssistant
+from typing import Any
+
+from homeassistant.components.binary_sensor import (
+    BinarySensorDeviceClass,
+    BinarySensorEntity,
+)
 from homeassistant.helpers.device_registry import DeviceInfo
-from .const import DOMAIN
+from homeassistant.helpers.dispatcher import async_dispatcher_connect
+
+from .const import DOMAIN, SIGNAL_CREATE_BINARY_SENSOR, SIGNAL_UPDATE_BINARY_SENSOR
 
 _LOGGER = logging.getLogger(__name__)
-SIGNAL_CREATE_BINARY_SENSOR = "meshcentral_create_binary_sensor"
-SIGNAL_UPDATE_BINARY_SENSOR = "meshcentral_update_binary_sensor"
 
-async def async_setup_entry(hass, config_entry, async_add_entities):
-    _LOGGER.info(f"Setting up MeshCentral binary sensor")
 
-    async def async_add_binary_sensor(devices):
-        sensors = []
-        for device in devices:
-            _LOGGER.info(f"Adding binary_sensor: {device['id']}")
-            sensors.append(MeshCentralBinarySensor(device))
-        async_add_entities(sensors, True)
+async def async_setup_entry(hass, config_entry, async_add_entities) -> None:
+    """Set up MeshCentral binary sensors from config entry."""
+
+    async def async_add_binary_sensor(devices: list[dict[str, Any]]) -> None:
+        sensors = [MeshCentralBinarySensor(device) for device in devices]
+        if sensors:
+            async_add_entities(sensors, True)
 
     async_dispatcher_connect(hass, SIGNAL_CREATE_BINARY_SENSOR, async_add_binary_sensor)
+    _LOGGER.debug("MeshCentral binary sensor dispatcher connected")
+
 
 class MeshCentralBinarySensor(BinarySensorEntity):
-    def __init__(self, device):
-        self._name = device.get("name", f"Unknown {device['id']}")
+    """Represent a MeshCentral power state entity."""
+
+    _attr_device_class = BinarySensorDeviceClass.CONNECTIVITY
+
+    def __init__(self, device: dict[str, Any]) -> None:
         self._device_id = device["id"]
+        self._name = device.get("name", f"Unknown {self._device_id}")
         self._node_id = device.get("node_id", "unknown_node_id")
-        self._state = device["state"]
-    
-    @property
-    def name(self):
-        return f"{self._name} Power"
+        self._state = bool(device.get("state"))
+
+        self._attr_unique_id = f"{self._device_id}_power"
+        self._attr_has_entity_name = True
 
     @property
-    def is_on(self):
+    def name(self) -> str:
+        return "Power"
+
+    @property
+    def is_on(self) -> bool:
         return self._state
 
     @property
-    def unique_id(self):
-        return self._device_id
-
-    @property
-    def device_class(self):
-        return BinarySensorDeviceClass.CONNECTIVITY
-
-    @property
-    def extra_state_attributes(self):
+    def extra_state_attributes(self) -> dict[str, str]:
         return {
             "node_id": self._node_id,
-            "name": self._name
+            "name": self._name,
         }
 
     @property
     def device_info(self) -> DeviceInfo:
-        """Return the device info."""
         return DeviceInfo(
             identifiers={(DOMAIN, self._device_id)},
-            name=self._name
+            name=self._name,
         )
 
-    def update_state(self, state):
-        _LOGGER.info(f"Updating state for {self._device_id} to {state}")
-        self._state = state
-        self.schedule_update_ha_state()
-
-    async def async_added_to_hass(self):
-        async def async_update_sensor(devices):
+    async def async_added_to_hass(self) -> None:
+        async def async_update_sensor(devices: list[dict[str, Any]]) -> None:
             for device in devices:
                 if device["id"] == self._device_id:
-                    self.update_state(device["state"])
-        async_dispatcher_connect(self.hass, SIGNAL_UPDATE_BINARY_SENSOR, async_update_sensor)
+                    self._state = bool(device.get("state"))
+                    self.async_write_ha_state()
+
+        self.async_on_remove(
+            async_dispatcher_connect(self.hass, SIGNAL_UPDATE_BINARY_SENSOR, async_update_sensor)
+        )

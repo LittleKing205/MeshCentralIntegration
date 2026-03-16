@@ -1,78 +1,73 @@
+from __future__ import annotations
+
 import logging
-from homeassistant.components.sensor import SensorEntity, SensorDeviceClass
-from homeassistant.helpers.dispatcher import async_dispatcher_connect
-from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
-from homeassistant.core import HomeAssistant
+from typing import Any
+
+from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
 from homeassistant.helpers.device_registry import DeviceInfo
-from .const import DOMAIN
+from homeassistant.helpers.dispatcher import async_dispatcher_connect
+
+from .const import DOMAIN, SIGNAL_CREATE_BATTERY_SENSOR, SIGNAL_UPDATE_BATTERY_SENSOR
 
 _LOGGER = logging.getLogger(__name__)
-SIGNAL_CREATE_BATTERY_SENSOR = "meshcentral_create_battery_sensor"
-SIGNAL_UPDATE_BATTERY_SENSOR = "meshcentral_update_battery_sensor"
 
 
-async def async_setup_entry(hass, config_entry, async_add_entities):
-    _LOGGER.info(f"Setting up MeshCentral battery sensor")
+async def async_setup_entry(hass, config_entry, async_add_entities) -> None:
+    """Set up MeshCentral battery sensors from config entry."""
 
-    async def async_add_battery_sensor(devices):
-        sensors = []
-        for device in devices:
-            _LOGGER.info(f"Adding sensor: {device['id']}")
-            sensors.append(MeshCentralBatterySensor(device))
-        async_add_entities(sensors, True)
+    async def async_add_battery_sensor(devices: list[dict[str, Any]]) -> None:
+        sensors = [MeshCentralBatterySensor(device) for device in devices]
+        if sensors:
+            async_add_entities(sensors, True)
 
     async_dispatcher_connect(hass, SIGNAL_CREATE_BATTERY_SENSOR, async_add_battery_sensor)
+    _LOGGER.debug("MeshCentral battery sensor dispatcher connected")
+
 
 class MeshCentralBatterySensor(SensorEntity):
-    def __init__(self, device):
+    """Represent a MeshCentral battery entity."""
+
+    _attr_device_class = SensorDeviceClass.BATTERY
+    _attr_native_unit_of_measurement = "%"
+
+    def __init__(self, device: dict[str, Any]) -> None:
         self._device_id = device["id"]
-        self._name = device.get("name", f"Unknown {device['id']}")
-        self._state = device["state"]
+        self._name = device.get("name", f"Unknown {self._device_id}")
+        self._state = device.get("state")
         self._node_id = device.get("node_id", "unknown_node_id")
-    
+
+        self._attr_unique_id = f"{self._device_id}_battery"
+        self._attr_has_entity_name = True
+
     @property
-    def name(self):
-        return f"{self._name} Battery"
+    def name(self) -> str:
+        return "Battery"
 
     @property
     def native_value(self):
         return self._state
 
     @property
-    def unique_id(self):
-        return self._device_id
-
-    @property
-    def device_class(self):
-        return SensorDeviceClass.BATTERY
-
-    @property
-    def native_unit_of_measurement(self):
-        return "%"
-
-    @property
-    def extra_state_attributes(self):
+    def extra_state_attributes(self) -> dict[str, str]:
         return {
             "node_id": self._node_id,
-            "name": self._name
+            "name": self._name,
         }
 
     @property
     def device_info(self) -> DeviceInfo:
-        """Return the device info."""
         return DeviceInfo(
             identifiers={(DOMAIN, self._device_id)},
-            name=self._name
+            name=self._name,
         )
 
-    def update_state(self, state):
-        _LOGGER.info(f"Updating state for {self._device_id} to {state}")
-        self._state = state
-        self.schedule_update_ha_state()
-
-    async def async_added_to_hass(self):
-        async def async_update_sensor(devices):
+    async def async_added_to_hass(self) -> None:
+        async def async_update_sensor(devices: list[dict[str, Any]]) -> None:
             for device in devices:
                 if device["id"] == self._device_id:
-                    self.update_state(device["state"])
-        async_dispatcher_connect(self.hass, SIGNAL_UPDATE_BATTERY_SENSOR, async_update_sensor)
+                    self._state = device.get("state")
+                    self.async_write_ha_state()
+
+        self.async_on_remove(
+            async_dispatcher_connect(self.hass, SIGNAL_UPDATE_BATTERY_SENSOR, async_update_sensor)
+        )

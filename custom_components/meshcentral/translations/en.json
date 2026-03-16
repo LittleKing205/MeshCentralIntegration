@@ -1,13 +1,41 @@
 {
-    "title": "MeshCentral Integration",
+    "title": "MeshCentral",
+    "config": {
+      "step": {
+        "user": {
+          "title": "Configure MeshCentral",
+          "description": "Enter your MeshCentral connection details.",
+          "data": {
+            "url": "MeshCentral URL",
+            "username": "Username",
+            "password": "Password",
+            "ssl": "Use SSL"
+          }
+        }
+      }
+    },
+    "options": {
+      "step": {
+        "init": {
+          "title": "MeshCentral Options",
+          "description": "Update connection details.",
+          "data": {
+            "url": "MeshCentral URL",
+            "username": "Username",
+            "password": "Password",
+            "ssl": "Use SSL"
+          }
+        }
+      }
+    },
     "services": {
       "power": {
         "name": "Power",
         "description": "Control the power state",
         "fields": {
           "device": {
-            "name": "Entity ID",
-            "description": "The entity to control"
+            "name": "Device",
+            "description": "The MeshCentral device to control"
           },
           "mode": {
             "name": "Mode",
@@ -20,8 +48,8 @@
         "description": "Send a notification",
         "fields": {
           "device": {
-            "name": "Entity ID",
-            "description": "The entity to notify"
+            "name": "Device",
+            "description": "The MeshCentral device to notify"
           },
           "message": {
             "name": "Message",

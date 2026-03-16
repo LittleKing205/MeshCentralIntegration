@@ -3,7 +3,7 @@ power:
   fields:
     device:
       required: true
-      description: "The entity ID to switch"
+      description: "The MeshCentral device"
       example: "binary_sensor.my_device_power"
       selector:
         device:
@@ -27,7 +27,7 @@ notify:
   fields:
     device:
       required: true
-      description: "The entity ID to send the notification"
+      description: "The MeshCentral device"
       example: "binary_sensor.my_device_power"
       selector:
         device:
