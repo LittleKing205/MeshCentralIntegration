@@ -253,6 +253,10 @@ async def process_event(hass: HomeAssistant, event_data: dict[str, Any], registe
     if not action or action in IGNORED_EVENTS:
         return
 
+    if action == "addnode":
+        handle_event_addnode(hass, event_data, entry_id)
+        return
+
     if action == "nodeconnect":
         handle_event_nodeconnect(hass, event_data, entry_id)
         return
@@ -284,20 +288,37 @@ def handle_action_nodes(hass: HomeAssistant, groups: dict[str, list[dict[str, An
 
     for group in groups.values():
         for node in group:
-            device_id = parse_nodeid(node["_id"])
-            power = bool(node.get("pwr") == 1)
-            name = node.get("name", f"Unknown {device_id}")
-            devices.append(
-                {
-                    "id": device_id,
-                    "name": name,
-                    "state": power,
-                    "node_id": node["_id"],
-                    "entry_id": entry_id,
-                }
-            )
+            devices.append(build_binary_sensor_device(node, entry_id))
 
     async_dispatcher_send(hass, SIGNAL_CREATE_BINARY_SENSOR, devices)
+
+
+def build_binary_sensor_device(
+    node: dict[str, Any],
+    entry_id: str | None = None,
+) -> dict[str, Any]:
+    device_id = parse_nodeid(node["_id"])
+    power = bool(node.get("pwr") == 1)
+    name = node.get("name", f"Unknown {device_id}")
+    return {
+        "id": device_id,
+        "name": name,
+        "state": power,
+        "node_id": node["_id"],
+        "entry_id": entry_id,
+    }
+
+
+def handle_event_addnode(
+    hass: HomeAssistant,
+    event_data: dict[str, Any],
+    entry_id: str | None = None,
+) -> None:
+    node = event_data.get("node")
+    if not node or "_id" not in node:
+        return
+
+    async_dispatcher_send(hass, SIGNAL_CREATE_BINARY_SENSOR, [build_binary_sensor_device(node, entry_id)])
 
 
 def handle_event_nodeconnect(
