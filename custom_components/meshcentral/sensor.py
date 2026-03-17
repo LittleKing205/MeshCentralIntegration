@@ -13,24 +13,37 @@ from .const import (
     SIGNAL_CREATE_BATTERY_SENSOR,
     SIGNAL_REMOVE_BATTERY_SENSOR,
     SIGNAL_UPDATE_BATTERY_SENSOR,
+    SIGNAL_CREATE_LAST_BOOT_SENSOR,
+    SIGNAL_REMOVE_LAST_BOOT_SENSOR,
+    SIGNAL_CREATE_LOGGED_IN_USERS_SENSOR,
+    SIGNAL_REMOVE_LOGGED_IN_USERS_SENSOR,
+    SIGNAL_CREATE_IP_SENSOR,
+    SIGNAL_REMOVE_IP_SENSOR,
+)
+from .node_info_sensor import (
+    MeshCentralLastBootSensor,
+    MeshCentralLoggedInUsersSensor,
+    MeshCentralIPSensor,
 )
 
 _LOGGER = logging.getLogger(__name__)
 
 
 async def async_setup_entry(hass, config_entry, async_add_entities) -> None:
-    """Set up MeshCentral battery sensors from config entry."""
-    known_device_ids: set[str] = set()
+    """Set up MeshCentral sensors from config entry."""
+    
+    # Battery Sensor
+    battery_known_device_ids: set[str] = set()
 
     async def async_add_battery_sensor(devices: list[dict[str, Any]]) -> None:
         entry_devices = [
             device for device in devices if device.get("entry_id") == config_entry.entry_id
         ]
-        new_devices = [device for device in entry_devices if device["id"] not in known_device_ids]
-        existing_devices = [device for device in entry_devices if device["id"] in known_device_ids]
+        new_devices = [device for device in entry_devices if device["id"] not in battery_known_device_ids]
+        existing_devices = [device for device in entry_devices if device["id"] in battery_known_device_ids]
 
         sensors = [MeshCentralBatterySensor(device) for device in new_devices]
-        known_device_ids.update(device["id"] for device in new_devices)
+        battery_known_device_ids.update(device["id"] for device in new_devices)
 
         if sensors:
             async_add_entities(sensors, True)
@@ -45,12 +58,109 @@ async def async_setup_entry(hass, config_entry, async_add_entities) -> None:
     async def async_remove_battery_sensor(devices: list[dict[str, Any]]) -> None:
         for device in devices:
             if device.get("entry_id") == config_entry.entry_id:
-                known_device_ids.discard(device["id"])
+                battery_known_device_ids.discard(device["id"])
 
     config_entry.async_on_unload(
         async_dispatcher_connect(hass, SIGNAL_REMOVE_BATTERY_SENSOR, async_remove_battery_sensor)
     )
-    _LOGGER.debug("MeshCentral battery sensor dispatcher connected")
+
+    # Last Boot Sensor
+    last_boot_known_device_ids: set[str] = set()
+
+    async def async_add_last_boot_sensor(devices: list[dict[str, Any]]) -> None:
+        entry_devices = [
+            device for device in devices if device.get("entry_id") == config_entry.entry_id
+        ]
+        new_devices = [device for device in entry_devices if device["id"] not in last_boot_known_device_ids]
+        existing_devices = [device for device in entry_devices if device["id"] in last_boot_known_device_ids]
+
+        sensors = [MeshCentralLastBootSensor(device) for device in new_devices]
+        last_boot_known_device_ids.update(device["id"] for device in new_devices)
+
+        if sensors:
+            async_add_entities(sensors, True)
+
+        if existing_devices:
+            async_dispatcher_send(hass, SIGNAL_UPDATE_BATTERY_SENSOR, existing_devices)
+
+    config_entry.async_on_unload(
+        async_dispatcher_connect(hass, SIGNAL_CREATE_LAST_BOOT_SENSOR, async_add_last_boot_sensor)
+    )
+
+    async def async_remove_last_boot_sensor(devices: list[dict[str, Any]]) -> None:
+        for device in devices:
+            if device.get("entry_id") == config_entry.entry_id:
+                last_boot_known_device_ids.discard(device["id"])
+
+    config_entry.async_on_unload(
+        async_dispatcher_connect(hass, SIGNAL_REMOVE_LAST_BOOT_SENSOR, async_remove_last_boot_sensor)
+    )
+
+    # Logged-in Users Sensor
+    logged_in_users_known_device_ids: set[str] = set()
+
+    async def async_add_logged_in_users_sensor(devices: list[dict[str, Any]]) -> None:
+        entry_devices = [
+            device for device in devices if device.get("entry_id") == config_entry.entry_id
+        ]
+        new_devices = [device for device in entry_devices if device["id"] not in logged_in_users_known_device_ids]
+        existing_devices = [device for device in entry_devices if device["id"] in logged_in_users_known_device_ids]
+
+        sensors = [MeshCentralLoggedInUsersSensor(device) for device in new_devices]
+        logged_in_users_known_device_ids.update(device["id"] for device in new_devices)
+
+        if sensors:
+            async_add_entities(sensors, True)
+
+        if existing_devices:
+            async_dispatcher_send(hass, SIGNAL_UPDATE_BATTERY_SENSOR, existing_devices)
+
+    config_entry.async_on_unload(
+        async_dispatcher_connect(hass, SIGNAL_CREATE_LOGGED_IN_USERS_SENSOR, async_add_logged_in_users_sensor)
+    )
+
+    async def async_remove_logged_in_users_sensor(devices: list[dict[str, Any]]) -> None:
+        for device in devices:
+            if device.get("entry_id") == config_entry.entry_id:
+                logged_in_users_known_device_ids.discard(device["id"])
+
+    config_entry.async_on_unload(
+        async_dispatcher_connect(hass, SIGNAL_REMOVE_LOGGED_IN_USERS_SENSOR, async_remove_logged_in_users_sensor)
+    )
+
+    # IP Sensor
+    ip_known_device_ids: set[str] = set()
+
+    async def async_add_ip_sensor(devices: list[dict[str, Any]]) -> None:
+        entry_devices = [
+            device for device in devices if device.get("entry_id") == config_entry.entry_id
+        ]
+        new_devices = [device for device in entry_devices if device["id"] not in ip_known_device_ids]
+        existing_devices = [device for device in entry_devices if device["id"] in ip_known_device_ids]
+
+        sensors = [MeshCentralIPSensor(device) for device in new_devices]
+        ip_known_device_ids.update(device["id"] for device in new_devices)
+
+        if sensors:
+            async_add_entities(sensors, True)
+
+        if existing_devices:
+            async_dispatcher_send(hass, SIGNAL_UPDATE_BATTERY_SENSOR, existing_devices)
+
+    config_entry.async_on_unload(
+        async_dispatcher_connect(hass, SIGNAL_CREATE_IP_SENSOR, async_add_ip_sensor)
+    )
+
+    async def async_remove_ip_sensor(devices: list[dict[str, Any]]) -> None:
+        for device in devices:
+            if device.get("entry_id") == config_entry.entry_id:
+                ip_known_device_ids.discard(device["id"])
+
+    config_entry.async_on_unload(
+        async_dispatcher_connect(hass, SIGNAL_REMOVE_IP_SENSOR, async_remove_ip_sensor)
+    )
+
+    _LOGGER.debug("MeshCentral sensor dispatcher connected")
 
 
 class MeshCentralBatterySensor(SensorEntity):

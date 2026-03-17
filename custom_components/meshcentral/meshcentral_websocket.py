@@ -2,6 +2,7 @@ import asyncio
 import base64
 import json
 import logging
+from datetime import datetime, timezone
 from typing import Any
 
 import aiohttp
@@ -16,17 +17,34 @@ from .const import (
     RECONNECT_DELAY_SECONDS,
     SIGNAL_CREATE_BATTERY_SENSOR,
     SIGNAL_CREATE_BINARY_SENSOR,
+    SIGNAL_CREATE_BATTERY_CHARGING_BINARY_SENSOR,
+    SIGNAL_CREATE_DEFENDER_RTP_BINARY_SENSOR,
+    SIGNAL_CREATE_IP_SENSOR,
+    SIGNAL_CREATE_LAST_BOOT_SENSOR,
+    SIGNAL_CREATE_LOGGED_IN_USERS_SENSOR,
+    SIGNAL_CREATE_WSC_BINARY_SENSORS,
     SIGNAL_REMOVE_BATTERY_SENSOR,
     SIGNAL_REMOVE_BINARY_SENSOR,
+    SIGNAL_REMOVE_BATTERY_CHARGING_BINARY_SENSOR,
+    SIGNAL_REMOVE_DEFENDER_RTP_BINARY_SENSOR,
+    SIGNAL_REMOVE_IP_SENSOR,
+    SIGNAL_REMOVE_LAST_BOOT_SENSOR,
+    SIGNAL_REMOVE_LOGGED_IN_USERS_SENSOR,
+    SIGNAL_REMOVE_WSC_BINARY_SENSORS,
     SIGNAL_UPDATE_BATTERY_SENSOR,
     SIGNAL_UPDATE_BINARY_SENSOR,
+    SIGNAL_UPDATE_BATTERY_CHARGING_BINARY_SENSOR,
+    SIGNAL_UPDATE_DEFENDER_RTP_BINARY_SENSOR,
+    SIGNAL_UPDATE_IP_SENSOR,
+    SIGNAL_UPDATE_LAST_BOOT_SENSOR,
+    SIGNAL_UPDATE_LOGGED_IN_USERS_SENSOR,
+    SIGNAL_UPDATE_WSC_BINARY_SENSORS,
 )
 
 _LOGGER = logging.getLogger(__name__)
 
 IGNORED_EVENTS = {
     "wakedevices",
-    "changenode",
     "wssessioncount",
     "servertimelinestats",
     "ifchange",
@@ -257,6 +275,10 @@ async def process_event(hass: HomeAssistant, event_data: dict[str, Any], registe
         handle_event_addnode(hass, event_data, entry_id)
         return
 
+    if action == "changenode":
+        await handle_event_changenode(hass, event_data, entry_id)
+        return
+
     if action == "nodeconnect":
         handle_event_nodeconnect(hass, event_data, entry_id)
         return
@@ -284,13 +306,62 @@ async def process_action(hass: HomeAssistant, action: str, action_data: Any, ent
 
 
 def handle_action_nodes(hass: HomeAssistant, groups: dict[str, list[dict[str, Any]]], entry_id: str | None = None) -> None:
-    devices: list[dict[str, Any]] = []
+    binary_sensors: list[dict[str, Any]] = []
+    last_boot_sensors: list[dict[str, Any]] = []
+    logged_in_users_sensors: list[dict[str, Any]] = []
+    ip_sensors: list[dict[str, Any]] = []
+    battery_charging_sensors: list[dict[str, Any]] = []
+    wsc_sensors: list[dict[str, Any]] = []
+    defender_rtp_sensors: list[dict[str, Any]] = []
 
     for group in groups.values():
         for node in group:
-            devices.append(build_binary_sensor_device(node, entry_id))
+            # Power binary sensor
+            binary_sensors.append(build_binary_sensor_device(node, entry_id))
+            
+            # Last Boot sensor
+            last_boot_device = build_last_boot_device(node, entry_id)
+            if last_boot_device:
+                last_boot_sensors.append(last_boot_device)
+            
+            # Logged-in Users sensor
+            logged_in_users_device = build_logged_in_users_device(node, entry_id)
+            if logged_in_users_device:
+                logged_in_users_sensors.append(logged_in_users_device)
+            
+            # IP sensor
+            ip_device = build_ip_device(node, entry_id)
+            if ip_device:
+                ip_sensors.append(ip_device)
+            
+            # Battery Charging binary sensor
+            battery_charging_device = build_battery_charging_device(node, entry_id)
+            if battery_charging_device:
+                battery_charging_sensors.append(battery_charging_device)
+            
+            # WSC binary sensors
+            wsc_devices = build_wsc_devices(node, entry_id)
+            wsc_sensors.extend(wsc_devices)
+            
+            # Defender RTP binary sensor
+            defender_rtp_device = build_defender_rtp_device(node, entry_id)
+            if defender_rtp_device:
+                defender_rtp_sensors.append(defender_rtp_device)
 
-    async_dispatcher_send(hass, SIGNAL_CREATE_BINARY_SENSOR, devices)
+    # Dispatch all CREATE signals
+    async_dispatcher_send(hass, SIGNAL_CREATE_BINARY_SENSOR, binary_sensors)
+    if last_boot_sensors:
+        async_dispatcher_send(hass, SIGNAL_CREATE_LAST_BOOT_SENSOR, last_boot_sensors)
+    if logged_in_users_sensors:
+        async_dispatcher_send(hass, SIGNAL_CREATE_LOGGED_IN_USERS_SENSOR, logged_in_users_sensors)
+    if ip_sensors:
+        async_dispatcher_send(hass, SIGNAL_CREATE_IP_SENSOR, ip_sensors)
+    if battery_charging_sensors:
+        async_dispatcher_send(hass, SIGNAL_CREATE_BATTERY_CHARGING_BINARY_SENSOR, battery_charging_sensors)
+    if wsc_sensors:
+        async_dispatcher_send(hass, SIGNAL_CREATE_WSC_BINARY_SENSORS, wsc_sensors)
+    if defender_rtp_sensors:
+        async_dispatcher_send(hass, SIGNAL_CREATE_DEFENDER_RTP_BINARY_SENSOR, defender_rtp_sensors)
 
 
 def build_binary_sensor_device(
@@ -305,6 +376,173 @@ def build_binary_sensor_device(
         "name": name,
         "state": power,
         "node_id": node["_id"],
+        "osdesc": node.get("osdesc"),
+        "rname": node.get("rname"),
+        "icon": node.get("icon"),
+        "ip": node.get("ip"),
+        "entry_id": entry_id,
+    }
+
+
+def build_last_boot_device(
+    node: dict[str, Any],
+    entry_id: str | None = None,
+) -> dict[str, Any] | None:
+    """Build last boot sensor device data. Returns None if lastbootuptime not present."""
+    lastbootuptime = node.get("lastbootuptime")
+    if lastbootuptime is None:
+        return None
+    
+    device_id = parse_nodeid(node["_id"])
+    name = node.get("name", f"Unknown {device_id}")
+    
+    return {
+        "id": device_id,
+        "name": name,
+        "state": datetime.fromtimestamp(lastbootuptime / 1000, tz=timezone.utc),
+        "node_id": node["_id"],
+        "entry_id": entry_id,
+    }
+
+
+def build_logged_in_users_device(
+    node: dict[str, Any],
+    entry_id: str | None = None,
+) -> dict[str, Any] | None:
+    """Build logged-in users sensor device data. Returns None if users field not present."""
+    users = node.get("users")
+    if users is None:
+        return None
+    
+    device_id = parse_nodeid(node["_id"])
+    name = node.get("name", f"Unknown {device_id}")
+    
+    return {
+        "id": device_id,
+        "name": name,
+        "state": len(users),
+        "users": users,
+        "node_id": node["_id"],
+        "entry_id": entry_id,
+    }
+
+
+def build_ip_device(
+    node: dict[str, Any],
+    entry_id: str | None = None,
+) -> dict[str, Any] | None:
+    """Build IP address sensor device data. Returns None if ip not present."""
+    ip = node.get("ip")
+    if ip is None:
+        return None
+    
+    device_id = parse_nodeid(node["_id"])
+    name = node.get("name", f"Unknown {device_id}")
+    
+    return {
+        "id": device_id,
+        "name": name,
+        "state": ip,
+        "node_id": node["_id"],
+        "entry_id": entry_id,
+    }
+
+
+def build_battery_charging_device(
+    node: dict[str, Any],
+    entry_id: str | None = None,
+) -> dict[str, Any] | None:
+    """Build battery charging binary sensor device data. Returns None if sessions.battery not present."""
+    battery_state = node.get("sessions", {}).get("battery", {}).get("state")
+    if battery_state is None:
+        return None
+    
+    device_id = parse_nodeid(node["_id"])
+    name = node.get("name", f"Unknown {device_id}")
+    
+    return {
+        "id": device_id,
+        "name": name,
+        "state": battery_state == "ac",
+        "battery_state": battery_state,
+        "node_id": node["_id"],
+        "entry_id": entry_id,
+    }
+
+
+def build_wsc_devices(
+    node: dict[str, Any],
+    entry_id: str | None = None,
+) -> list[dict[str, Any]]:
+    """Build WSC (firewall, antivirus, autoupdate) binary sensor device data. Returns empty list if wsc not present."""
+    wsc = node.get("wsc")
+    if wsc is None:
+        return []
+    
+    device_id = parse_nodeid(node["_id"])
+    name = node.get("name", f"Unknown {device_id}")
+    devices = []
+    
+    # Firewall
+    if "firewall" in wsc:
+        devices.append({
+            "id": device_id,
+            "name": name,
+            "sensor_type": "firewall",
+            "state": wsc["firewall"] == "OK",
+            "wsc_value": wsc["firewall"],
+            "node_id": node["_id"],
+            "entry_id": entry_id,
+        })
+    
+    # AntiVirus
+    if "antiVirus" in wsc:
+        devices.append({
+            "id": device_id,
+            "name": name,
+            "sensor_type": "antivirus",
+            "state": wsc["antiVirus"] == "OK",
+            "wsc_value": wsc["antiVirus"],
+            "node_id": node["_id"],
+            "entry_id": entry_id,
+        })
+    
+    # AutoUpdate
+    if "autoUpdate" in wsc:
+        devices.append({
+            "id": device_id,
+            "name": name,
+            "sensor_type": "autoupdate",
+            "state": wsc["autoUpdate"] == "OK",
+            "wsc_value": wsc["autoUpdate"],
+            "node_id": node["_id"],
+            "entry_id": entry_id,
+        })
+    
+    return devices
+
+
+def build_defender_rtp_device(
+    node: dict[str, Any],
+    entry_id: str | None = None,
+) -> dict[str, Any] | None:
+    """Build Defender Real-Time Protection binary sensor device data. Returns None if defender not present."""
+    defender = node.get("defender")
+    if defender is None or "RealTimeProtection" not in defender:
+        return None
+    
+    device_id = parse_nodeid(node["_id"])
+    name = node.get("name", f"Unknown {device_id}")
+    
+    return {
+        "id": device_id,
+        "name": name,
+        "state": defender.get("RealTimeProtection", False),
+        "tamper_protected": defender.get("TamperProtected", False),
+        "antivirus_signature_version": defender.get("AntivirusSignatureVersion"),
+        "antivirus_signature_last_updated": defender.get("AntivirusSignatureLastUpdated"),
+        "av_products": node.get("av", []),
+        "node_id": node["_id"],
         "entry_id": entry_id,
     }
 
@@ -318,7 +556,82 @@ def handle_event_addnode(
     if not node or "_id" not in node:
         return
 
+    # Power binary sensor
     async_dispatcher_send(hass, SIGNAL_CREATE_BINARY_SENSOR, [build_binary_sensor_device(node, entry_id)])
+    
+    # Last Boot sensor
+    last_boot_device = build_last_boot_device(node, entry_id)
+    if last_boot_device:
+        async_dispatcher_send(hass, SIGNAL_CREATE_LAST_BOOT_SENSOR, [last_boot_device])
+    
+    # Logged-in Users sensor
+    logged_in_users_device = build_logged_in_users_device(node, entry_id)
+    if logged_in_users_device:
+        async_dispatcher_send(hass, SIGNAL_CREATE_LOGGED_IN_USERS_SENSOR, [logged_in_users_device])
+    
+    # IP sensor
+    ip_device = build_ip_device(node, entry_id)
+    if ip_device:
+        async_dispatcher_send(hass, SIGNAL_CREATE_IP_SENSOR, [ip_device])
+    
+    # Battery Charging binary sensor
+    battery_charging_device = build_battery_charging_device(node, entry_id)
+    if battery_charging_device:
+        async_dispatcher_send(hass, SIGNAL_CREATE_BATTERY_CHARGING_BINARY_SENSOR, [battery_charging_device])
+    
+    # WSC binary sensors
+    wsc_devices = build_wsc_devices(node, entry_id)
+    if wsc_devices:
+        async_dispatcher_send(hass, SIGNAL_CREATE_WSC_BINARY_SENSORS, wsc_devices)
+    
+    # Defender RTP binary sensor
+    defender_rtp_device = build_defender_rtp_device(node, entry_id)
+    if defender_rtp_device:
+        async_dispatcher_send(hass, SIGNAL_CREATE_DEFENDER_RTP_BINARY_SENSOR, [defender_rtp_device])
+
+
+async def handle_event_changenode(
+    hass: HomeAssistant,
+    event_data: dict[str, Any],
+    entry_id: str | None = None,
+) -> None:
+    """Handle changenode event and dispatch UPDATE signals for all affected entities."""
+    node = event_data.get("node")
+    if not node or "_id" not in node:
+        return
+
+    # Power binary sensor + attributes (osdesc, rname, icon, ip)
+    async_dispatcher_send(hass, SIGNAL_UPDATE_BINARY_SENSOR, [build_binary_sensor_device(node, entry_id)])
+    
+    # Last Boot sensor
+    last_boot_device = build_last_boot_device(node, entry_id)
+    if last_boot_device:
+        async_dispatcher_send(hass, SIGNAL_UPDATE_LAST_BOOT_SENSOR, [last_boot_device])
+    
+    # Logged-in Users sensor
+    logged_in_users_device = build_logged_in_users_device(node, entry_id)
+    if logged_in_users_device:
+        async_dispatcher_send(hass, SIGNAL_UPDATE_LOGGED_IN_USERS_SENSOR, [logged_in_users_device])
+    
+    # IP sensor
+    ip_device = build_ip_device(node, entry_id)
+    if ip_device:
+        async_dispatcher_send(hass, SIGNAL_UPDATE_IP_SENSOR, [ip_device])
+    
+    # Battery Charging binary sensor
+    battery_charging_device = build_battery_charging_device(node, entry_id)
+    if battery_charging_device:
+        async_dispatcher_send(hass, SIGNAL_UPDATE_BATTERY_CHARGING_BINARY_SENSOR, [battery_charging_device])
+    
+    # WSC binary sensors
+    wsc_devices = build_wsc_devices(node, entry_id)
+    if wsc_devices:
+        async_dispatcher_send(hass, SIGNAL_UPDATE_WSC_BINARY_SENSORS, wsc_devices)
+    
+    # Defender RTP binary sensor
+    defender_rtp_device = build_defender_rtp_device(node, entry_id)
+    if defender_rtp_device:
+        async_dispatcher_send(hass, SIGNAL_UPDATE_DEFENDER_RTP_BINARY_SENSOR, [defender_rtp_device])
 
 
 def handle_event_nodeconnect(
@@ -372,6 +685,14 @@ async def async_remove_device_entities(
     entity_ids = [
         entity_registry.async_get_entity_id("binary_sensor", DOMAIN, f"{device_id}_power"),
         entity_registry.async_get_entity_id("sensor", DOMAIN, f"{device_id}_battery"),
+        entity_registry.async_get_entity_id("sensor", DOMAIN, f"{device_id}_last_boot"),
+        entity_registry.async_get_entity_id("sensor", DOMAIN, f"{device_id}_logged_in_users"),
+        entity_registry.async_get_entity_id("sensor", DOMAIN, f"{device_id}_ip"),
+        entity_registry.async_get_entity_id("binary_sensor", DOMAIN, f"{device_id}_battery_charging"),
+        entity_registry.async_get_entity_id("binary_sensor", DOMAIN, f"{device_id}_wsc_firewall"),
+        entity_registry.async_get_entity_id("binary_sensor", DOMAIN, f"{device_id}_wsc_antivirus"),
+        entity_registry.async_get_entity_id("binary_sensor", DOMAIN, f"{device_id}_wsc_autoupdate"),
+        entity_registry.async_get_entity_id("binary_sensor", DOMAIN, f"{device_id}_defender_rtp"),
     ]
 
     for entity_id in entity_ids:
@@ -423,7 +744,19 @@ async def handle_event_devicesessions(
 
     if device_id in registered_battery_devices:
         async_dispatcher_send(hass, SIGNAL_UPDATE_BATTERY_SENSOR, [device])
-        return
-
-    registered_battery_devices.add(device_id)
-    async_dispatcher_send(hass, SIGNAL_CREATE_BATTERY_SENSOR, [device])
+    else:
+        registered_battery_devices.add(device_id)
+        async_dispatcher_send(hass, SIGNAL_CREATE_BATTERY_SENSOR, [device])
+    
+    # Also dispatch Battery Charging binary sensor state
+    battery_state = event_data.get("sessions", {}).get("battery", {}).get("state")
+    if battery_state is not None:
+        battery_charging_device = {
+            "id": device_id,
+            "name": device_name,
+            "state": battery_state == "ac",
+            "battery_state": battery_state,
+            "node_id": event_data["nodeid"],
+            "entry_id": entry_id,
+        }
+        async_dispatcher_send(hass, SIGNAL_UPDATE_BATTERY_CHARGING_BINARY_SENSOR, [battery_charging_device])
