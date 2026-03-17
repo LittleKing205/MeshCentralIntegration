@@ -11,6 +11,7 @@ from .const import (
     DOMAIN,
     NODE_ID_IDENTIFIER_PREFIX,
     SIGNAL_CREATE_BATTERY_SENSOR,
+    SIGNAL_REMOVE_BATTERY_SENSOR,
     SIGNAL_UPDATE_BATTERY_SENSOR,
 )
 
@@ -39,6 +40,15 @@ async def async_setup_entry(hass, config_entry, async_add_entities) -> None:
 
     config_entry.async_on_unload(
         async_dispatcher_connect(hass, SIGNAL_CREATE_BATTERY_SENSOR, async_add_battery_sensor)
+    )
+
+    async def async_remove_battery_sensor(devices: list[dict[str, Any]]) -> None:
+        for device in devices:
+            if device.get("entry_id") == config_entry.entry_id:
+                known_device_ids.discard(device["id"])
+
+    config_entry.async_on_unload(
+        async_dispatcher_connect(hass, SIGNAL_REMOVE_BATTERY_SENSOR, async_remove_battery_sensor)
     )
     _LOGGER.debug("MeshCentral battery sensor dispatcher connected")
 
@@ -97,4 +107,16 @@ class MeshCentralBatterySensor(SensorEntity):
 
         self.async_on_remove(
             async_dispatcher_connect(self.hass, SIGNAL_UPDATE_BATTERY_SENSOR, async_update_sensor)
+        )
+
+        async def async_remove_sensor(devices: list[dict[str, Any]]) -> None:
+            for device in devices:
+                if device.get("entry_id") not in (None, self._entry_id):
+                    continue
+                if device["id"] == self._device_id:
+                    await self.async_remove(force_remove=True)
+                    return
+
+        self.async_on_remove(
+            async_dispatcher_connect(self.hass, SIGNAL_REMOVE_BATTERY_SENSOR, async_remove_sensor)
         )

@@ -7,6 +7,7 @@ from typing import Any
 import aiohttp
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 
@@ -15,6 +16,8 @@ from .const import (
     RECONNECT_DELAY_SECONDS,
     SIGNAL_CREATE_BATTERY_SENSOR,
     SIGNAL_CREATE_BINARY_SENSOR,
+    SIGNAL_REMOVE_BATTERY_SENSOR,
+    SIGNAL_REMOVE_BINARY_SENSOR,
     SIGNAL_UPDATE_BATTERY_SENSOR,
     SIGNAL_UPDATE_BINARY_SENSOR,
 )
@@ -258,6 +261,10 @@ async def process_event(hass: HomeAssistant, event_data: dict[str, Any], registe
         await handle_event_devicesessions(hass, event_data, registered_battery_devices, entry_id)
         return
 
+    if action == "removenode":
+        await handle_event_removenode(hass, event_data, registered_battery_devices, entry_id)
+        return
+
     _LOGGER.debug("Unknown event type: %s, payload: %s", action, event_data)
 
 
@@ -307,6 +314,58 @@ def handle_event_nodeconnect(
         "entry_id": entry_id,
     }
     async_dispatcher_send(hass, SIGNAL_UPDATE_BINARY_SENSOR, [device])
+
+
+async def handle_event_removenode(
+    hass: HomeAssistant,
+    event_data: dict[str, Any],
+    registered_battery_devices: set[str],
+    entry_id: str | None = None,
+) -> None:
+    node_id = event_data.get("nodeid")
+    if not node_id:
+        return
+
+    device_id = parse_nodeid(node_id)
+    device = {
+        "id": device_id,
+        "node_id": node_id,
+        "entry_id": entry_id,
+    }
+
+    registered_battery_devices.discard(device_id)
+
+    async_dispatcher_send(hass, SIGNAL_REMOVE_BATTERY_SENSOR, [device])
+    async_dispatcher_send(hass, SIGNAL_REMOVE_BINARY_SENSOR, [device])
+
+    await async_remove_device_entities(hass, device_id, entry_id)
+
+
+async def async_remove_device_entities(
+    hass: HomeAssistant,
+    device_id: str,
+    entry_id: str | None = None,
+) -> None:
+    entity_registry = er.async_get(hass)
+
+    entity_ids = [
+        entity_registry.async_get_entity_id("binary_sensor", DOMAIN, f"{device_id}_power"),
+        entity_registry.async_get_entity_id("sensor", DOMAIN, f"{device_id}_battery"),
+    ]
+
+    for entity_id in entity_ids:
+        if entity_id is not None:
+            entity_registry.async_remove(entity_id)
+
+    device_registry = dr.async_get(hass)
+    device_entry = device_registry.async_get_device(identifiers={(DOMAIN, device_id)})
+    if not device_entry:
+        return
+
+    if entry_id is not None and entry_id not in device_entry.config_entries:
+        return
+
+    device_registry.async_remove_device(device_entry.id)
 
 
 async def handle_event_devicesessions(
