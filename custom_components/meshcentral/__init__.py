@@ -47,13 +47,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         registered_battery_devices=entry_runtime[DATA_REGISTERED_BATTERY_DEVICES],
         entry_id=entry.entry_id,
     )
-    await client.async_start()
 
     entry_runtime[DATA_CLIENT] = client
     hass.data[DOMAIN][entry.entry_id] = entry_runtime
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     await setup_services(hass, entry.entry_id)
+    await client.async_start(entry)
 
     _LOGGER.info("MeshCentral entry set up: %s", entry.entry_id)
     return True

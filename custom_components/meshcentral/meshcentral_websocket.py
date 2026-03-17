@@ -5,6 +5,7 @@ import logging
 from typing import Any
 
 import aiohttp
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.dispatcher import async_dispatcher_send
@@ -35,7 +36,12 @@ IGNORED_EVENTS = {
     "recording",
     "relaylog",
 }
-IGNORED_ACTIONS = {"serverinfo", "userinfo", "plugin"}
+
+IGNORED_ACTIONS = {
+    "serverinfo", 
+    "userinfo", 
+    "plugin"
+}
 
 
 class MeshCentralWebSocketClient:
@@ -67,14 +73,18 @@ class MeshCentralWebSocketClient:
         self._connect_lock = asyncio.Lock()
         self._cached_devices: dict[str, dict[str, Any]] = {}
 
-    async def async_start(self) -> None:
+    async def async_start(self, entry: ConfigEntry) -> None:
         """Start websocket background worker."""
         if self._worker_task and not self._worker_task.done():
             return
 
         self._stop_event.clear()
         self._session = aiohttp.ClientSession()
-        self._worker_task = self.hass.async_create_task(self._run())
+        self._worker_task = entry.async_create_background_task(
+            self.hass,
+            self._run(),
+            f"{DOMAIN} websocket",
+        )
 
     async def async_stop(self) -> None:
         """Stop websocket background worker and close resources."""
@@ -115,7 +125,7 @@ class MeshCentralWebSocketClient:
             command_data.update(extra_data)
 
         await self._websocket.send_str(json.dumps(command_data))
-        _LOGGER.debug("Sent command '%s'", action)
+        _LOGGER.debug("Sent command '%s' with payload: %s", action, command_data)
 
     def get_cached_devices(self) -> list[dict[str, Any]]:
         """Return list of cached devices."""
@@ -248,7 +258,7 @@ async def process_event(hass: HomeAssistant, event_data: dict[str, Any], registe
         await handle_event_devicesessions(hass, event_data, registered_battery_devices, entry_id)
         return
 
-    _LOGGER.debug("Unknown event type: %s", action)
+    _LOGGER.debug("Unknown event type: %s, payload: %s", action, event_data)
 
 
 async def process_action(hass: HomeAssistant, action: str, action_data: Any, entry_id: str | None = None) -> None:
@@ -259,7 +269,7 @@ async def process_action(hass: HomeAssistant, action: str, action_data: Any, ent
         handle_action_nodes(hass, action_data, entry_id)
         return
 
-    _LOGGER.debug("Unknown action type: %s", action)
+    _LOGGER.debug("Unknown action type: %s, payload: %s", action, action_data)
 
 
 def handle_action_nodes(hass: HomeAssistant, groups: dict[str, list[dict[str, Any]]], entry_id: str | None = None) -> None:
